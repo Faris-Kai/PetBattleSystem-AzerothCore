@@ -367,11 +367,12 @@ C++/SQL) — it's typically handled with WotLK modding community tools
 ---
 Menu:
 
-<video src="https://github.com/d3mkai-creator/PetBattleSystem-AzerothCore/blob/main/Funciones-Menu.mp4" controls width="100%"></video>
+https://github.com/user-attachments/assets/f3f95ff9-dbea-44eb-bd63-09040ba64df1
+
 
 Battle vs Creature:
 
-<video src="https://github.com/d3mkai-creator/PetBattleSystem-AzerothCore/blob/main/CriaturaVs.mp4" controls width="100%"></video>
+https://github.com/user-attachments/assets/d2306066-2b70-489e-ae67-e56073206a1c
 
 
 
