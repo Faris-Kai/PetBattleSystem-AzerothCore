@@ -365,3 +365,26 @@ C++/SQL) — it's typically handled with WotLK modding community tools
   assigned.
 
 ---
+
+Menu:
+<video src="Funciones-Menu.mp4" controls width="600"></video>
+
+Battle vs Creature:
+<video src="CriaturaVs.mp4" controls width="600"></video>
+
+Battle vs Player:
+[![Watch on YouTube](https://img.youtube.com/vi/gc6cSDInFuk/hqdefault.jpg)](https://youtu.be/gc6cSDInFuk)
+
+*(click the image to open the video on YouTube — GitHub doesn't allow
+embedding the player directly in the README)*
+---
+
+Well, my stomach is growling louder than a raid boss. 🍖😂
+
+If you’d like to support the project, you can feed the starving developer here:
+[PayPal – Support]
+(https://paypal.me/Marquesini1992)
+
+I’ll slowly fade into the distance now… 🚶‍♂️💨
+*Probably heading straight for the nearest food.* 🍔
+
