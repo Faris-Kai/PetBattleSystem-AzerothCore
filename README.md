@@ -365,6 +365,24 @@ C++/SQL) — it's typically handled with WotLK modding community tools
   assigned.
 
 ---
+Menu:
+
+<video src="https://github.com/d3mkai-creator/PetBattleSystem-AzerothCore/blob/main/Funciones-Menu.mp4" controls width="100%"></video>
+
+Battle vs Creature:
+
+<video src="https://github.com/d3mkai-creator/PetBattleSystem-AzerothCore/blob/main/CriaturaVs.mp4" controls width="100%"></video>
+
+
+
+Battle vs Player:
+
+[![Watch on YouTube](https://img.youtube.com/vi/gc6cSDInFuk/hqdefault.jpg)](https://youtu.be/gc6cSDInFuk)
+
+*(click the image to open the video on YouTube — GitHub doesn't allow
+embedding the player directly in the README)*
+
+---
 
 Well, my stomach is growling louder than a raid boss. 🍖😂
 
