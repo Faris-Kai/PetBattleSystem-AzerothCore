@@ -365,6 +365,9 @@ C++/SQL) — it's typically handled with WotLK modding community tools
   assigned.
 
 ---
+
+9. Videos
+
 Menu:
 
 https://github.com/user-attachments/assets/f3f95ff9-dbea-44eb-bd63-09040ba64df1
