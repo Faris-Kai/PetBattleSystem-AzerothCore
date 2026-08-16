@@ -1,0 +1,38 @@
+[worldserver]
+########################################
+# mod-pet-battle
+########################################
+#
+#	Español
+#    PetBattle.Enable
+#        Descripcion: Activa o desactiva por completo el sistema de combate
+#                      de mascotas (comando /dp) en el servidor.
+#        Default:     1 (activado)
+#
+#	English
+#    PetBattle.Enable
+#        Description: Enables or disables the pet battle system
+#                     (/dp command) on the server.
+#        Default:     1 (enabled
+
+PetBattle.Enable = 1
+
+#
+#	Español
+#		Muestra efecto spell al invocar la mascotas
+#		VisualSpellId = que quieras
+#
+#	English
+#		Displays a spell effect when summoning the pet
+#		VisualSpellId = any spell ID you want
+
+PetBattle.SummonVisualSpellId = 47292
+
+#
+#	Español
+#		Tiempo limite en seg para que el jugador de respuesta 
+#
+#	English
+#		Time limit in seconds for the player to respond
+
+PetBattle.TurnTimeoutSeconds = 15

@@ -1,0 +1,48 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+  <Frame name="PetBattleUI_CoinFrame" toplevel="true" frameStrata="DIALOG" hidden="true" parent="UIParent" movable="true" enableMouse="true" clampedToScreen="true">
+    <Size x="220" y="160"/>
+    <Anchors>
+      <Anchor point="CENTER"/>
+      <Anchor point="CENTER" x="0" y="220"/>
+    </Anchors>
+    <Layers>
+      <Layer level="ARTWORK">
+        <FontString name="PetBattleUI_CoinResultText" inherits="GameFontNormalHuge" justifyH="CENTER">
+          <Size x="200" y="0"/>
+          <Anchors>
+            <Anchor point="TOP" x="0" y="-10"/>
+          </Anchors>
+        </FontString>
+      </Layer>
+    </Layers>
+    <Frames>
+      <Button name="PetBattleUI_CoinButton">
+        <Size x="64" y="64"/>
+        <Anchors>
+          <Anchor point="CENTER" x="0" y="-30"/>
+        </Anchors>
+        <NormalTexture file="Interface\Icons\INV_Misc_Coin_01"/>
+        <PushedTexture file="Interface\Icons\INV_Misc_Coin_01"/>
+        <HighlightTexture file="Interface\Buttons\ButtonHilight-Square" alphaMode="ADD"/>
+        <Scripts>
+          <OnClick>PetBattleUI_Coin_OnClick()</OnClick>
+        </Scripts>
+      </Button>
+    </Frames>
+    <Scripts>
+      <OnLoad>PetBattleUI_CoinResultText:SetAlpha(0)</OnLoad>
+      <OnMouseDown>
+        if button == "LeftButton" then
+          this:StartMoving()
+        end
+      </OnMouseDown>
+      <OnMouseUp>
+        this:StopMovingOrSizing()
+        PetBattleUI_SavePosition(this)
+      </OnMouseUp>
+      <OnHide>
+        this:StopMovingOrSizing()
+      </OnHide>
+    </Scripts>
+  </Frame>
+</Ui>
