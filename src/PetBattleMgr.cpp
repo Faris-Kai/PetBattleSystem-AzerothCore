@@ -3441,31 +3441,6 @@ void PetBattleMgr::StartPetAttack(
     float currentDistance =
         attackerCreature->GetDistance(defenderCreature);
 
-    if (currentDistance > PET_MAX_ATTACK_DISTANCE)
-    {
-        Player* messagePlayer = attackerPlayer;
-
-        // En combate salvaje el atacante es la criatura, por lo que
-        // no tenemos attackerPlayer. El jugador que observa el combate
-        // siempre es playerA.
-        if (!messagePlayer && battle.isWildBattle)
-        {
-            messagePlayer =
-                ObjectAccessor::FindPlayer(battle.playerA);
-        }
-
-        if (messagePlayer)
-        {
-            ChatHandler(messagePlayer->GetSession()).PSendSysMessage(
-                "{}",
-                GetText(messagePlayer, PETTXT_TOO_FAR));
-
-            if (attackerPlayer)
-                ShowAttackMenu(attackerPlayer, battle);
-        }
-
-        return;
-    }
 
     Position startPosition = attackerCreature->GetPosition();
 
