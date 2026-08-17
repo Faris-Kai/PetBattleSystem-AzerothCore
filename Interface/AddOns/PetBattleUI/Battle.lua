@@ -8,7 +8,9 @@
 -- ============================================================
 --Cura
 local ATTACK_ICON_LOW =
-    "Interface\\Icons\\Spell_nature_healingtouch"
+    "Interface\\Icons\\Spell_nature_healingtouch"--Cura
+local ATTACK_ICON_LOL =
+    "Interface\\Icons\\Achievement_character_troll_male"
 --Daño normal
 local ATTACK_ICON_NORMAL =
     "Interface\\Icons\\ability_druid_catform"
@@ -172,7 +174,7 @@ local function GetAttackIcon(damage)
 
     if damage == 0 then
 
-        return ATTACK_ICON_LOW
+        return ATTACK_ICON_LOL
 
     end
 
