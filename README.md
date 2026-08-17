@@ -9,7 +9,9 @@ that teaches that creature as a permanent companion.
 
 ## 1. What the module does
 
-- Each player builds a team of up to **3 pets**
+- Each player builds a team of up to **3 pets** in Pets menu (By
+  pressing C and going to the Pets tab, as long as they have at
+  least one pet).
 - **PvP duel**: select another player and type `.dp` to challenge
   them.
 - **Wild duel**: select a creature in the world and type `.dp`. If
@@ -42,9 +44,7 @@ that teaches that creature as a permanent companion.
 3. Create the SQL tables in the **world** database (section 5).
 4. add a `mod_pet_battle.conf` (section 6), or leave it to
    use the defaults.
-5. install the `PetBattleUI` client addon if your players
-   are going to use it; otherwise the system still works fully through
-   gossip.
+5. install the `PetBattleUI` client addon.
 
 ---
 
