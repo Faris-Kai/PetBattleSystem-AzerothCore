@@ -1,59 +1,61 @@
 [worldserver]
+
 ########################################
 # mod-pet-battle
 ########################################
 #
-#	Español
 #    PetBattle.Enable
-#        Descripcion: Activa o desactiva por completo el sistema de combate
-#                      de mascotas (comando /dp) en el servidor.
-#        Default:     1 (activado)
-#
-#	English
-#    PetBattle.Enable
-#        Description: Enables or disables the pet battle system
-#                     (/dp command) on the server.
-#        Default:     1 (enabled
+#        Description: Enables or completely disables the pet battle system
+#                     (the /dp command) on the server.
+#        Default:     1 (enabled)
 
 PetBattle.Enable = 1
 
-# Distancia limite para combatir
-PetBattle.ChallengeMaxDistance = 10
 
-#
-#	Español
-#		Muestra efecto spell al invocar la mascotas
-#		VisualSpellId = que quieras
-#
-#	English
-#		Displays a spell effect when summoning the pet
-#		VisualSpellId = any spell ID you want
-
+# Displays a spell effect when summoning the pet.
+# VisualSpellId = any spell visual you want.
 PetBattle.SummonVisualSpellId = 47292
 
-#
-#	Español
-#		Tiempo limite en seg para que el jugador de respuesta 
-#
-#	English
-#		Time limit in seconds for the player to respond
 
+# Displays the [PETDMG] messages used for debugging/addons.
+# 0 = disabled
+# 1 = enabled
+PetBattle.DebugDamageMessages = 0
+
+
+# Time limit in seconds for the responding player.
 PetBattle.TurnTimeoutSeconds = 15
 
-# Experiencia ganada vs criaturas
+# XP percentage awarded against wild pets.
 PetBattle.XpPercentVsWild = 5
 
-# Experiencia ganada vs criaturas Jugadores
+# XP percentage awarded in PvP battles.
 PetBattle.XpPercentVsPvp = 15
 
-# Cantidad de vida para activar instinto de supervivencia
+# Maximum distance allowed for combat.
+PetBattle.ChallengeMaxDistance = 10
+
+# HP percentage at which the survival instinct is triggered.
 PetBattle.HealBelowPercent = 25
 
-# Probabilidad de que el ataque cambie a una cura
+# Chance for an attack to be replaced by a heal.
 PetBattle.HealChance = 15
 
-# Cura minima
+# Minimum healing amount.
 PetBattle.HealMin = 15
 
-# Cura maxima
+# Maximum healing amount.
 PetBattle.HealMax = 45
+
+# Visual played on the pet that heals itself (its own ability
+# or auto-heal when HP is low). 0 = uses the normal attack emote.
+PetBattle.HealVisualSpellId = 24209
+
+# Visual played on the attacking pet when the damage is BELOW the
+# fixed threshold of 19 (see PET_DAMAGE_VISUAL_THRESHOLD in the .cpp).
+# 0 = uses the normal attack emote.
+PetBattle.DamageVisualSpellIdLow = 24209
+
+# Visual played on the attacking pet when the damage is GREATER THAN OR EQUAL
+# to the threshold. 0 = uses the normal attack emote.
+PetBattle.DamageVisualSpellIdHigh = 24209
