@@ -180,12 +180,19 @@ The module doesn't ship a `.conf` in what was uploaded, but it reads
 these keys via `sConfigMgr->GetOption`, all optional (if the file
 doesn't exist, the default is used):
 
-| Key                                  | Type   | Default | Effect |
-|---------------------------------------|--------|---------|--------|
-| `PetBattle.Enable`                    | bool   | `true`  | Turns the whole system on/off (`.dp` will say it's disabled). |
-| `PetBattle.TurnTimeoutSeconds`        | uint32 | `15`    | Seconds to attack before auto-losing by timeout. `0` disables the limit. |
-| `PetBattle.DebugDamageMessages`       | bool   | `false` | Sends each hit's damage over chat (prefix `[PETDMG]`) for addon debugging. |
-| `PetBattle.SummonVisualSpellId`       | uint32 | `0`     | Visual spell cast when the active pet is summoned. If `0`, an exclamation emote is used instead. |
+| Key                              | Type   | Default | Effect                                                                                              |
+| -------------------------------- | ------ | ------- | --------------------------------------------------------------------------------------------------- |
+| `PetBattle.Enable`               | bool   | `true`  | Turns the whole system on/off (`.dp` will say it's disabled).                                       |
+| `PetBattle.TurnTimeoutSeconds`   | uint32 | `15`    | Seconds to attack before auto-losing by timeout. `0` disables the limit.                            |
+| `PetBattle.DebugDamageMessages`  | bool   | `false` | Sends each hit's damage over chat (prefix `[PETDMG]`) for addon debugging.                          |
+| `PetBattle.SummonVisualSpellId`  | uint32 | `0`     | Visual spell cast when the active pet is summoned. If `0`, an exclamation emote is used instead.    |
+| `PetBattle.XpPercentVsWild`      | uint32 | `5`     | Percentage of experience gained when defeating a wild creature in PvE.                              |
+| `PetBattle.XpPercentVsPvp`       | uint32 | `15`    | Percentage of experience gained when defeating another player's pet in PvP.                         |
+| `PetBattle.HealBelowPercent`     | uint32 | `25`    | Health percentage below which the pet can trigger its survival instinct and attempt to heal itself. |
+| `PetBattle.HealChance`           | uint32 | `15`    | Chance, in percent, for the pet to choose healing itself instead of attacking.                      |
+| `PetBattle.HealMin`              | uint32 | `15`    | Minimum amount of health restored by the pet's automatic healing.                                   |
+| `PetBattle.HealMax`              | uint32 | `45`    | Maximum amount of health restored by the pet's automatic healing.                                   |
+| `PetBattle.MaxChallengeDistance` | uint32 | `10`    | Maximum distance, in yards, allowed to challenge a player or creature to a pet battle.              |
 
 Example file:
 
