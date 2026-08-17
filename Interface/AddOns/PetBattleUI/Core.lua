@@ -286,24 +286,21 @@ function PetBattleUI:OnServerMessage(msg)
     -- HP
     -- ========================================================
 
-    elseif cmd == "HPUPDATE" then
-
-        PetBattleUI_Battle_UpdateHP(
-
-            p[2],
-            tonumber(p[3]),
-            tonumber(p[4])
-
-        )
-
-
-        if p[2] == "mine" then
-
-            PetBattleUI_Battle_SetTurn(
-                true
-            )
-
-        end
+	elseif cmd == "HPUPDATE" then
+	
+		PetBattleUI_Battle_UpdateHP(
+			p[2],
+			tonumber(p[3]),
+			tonumber(p[4])
+		)
+	
+		-- Compatibilidad con el flujo actual:
+		-- si nuestra mascota recibió daño, significa que la
+		-- criatura salvaje terminó su acción y podemos preparar
+		-- nuestro turno.
+		--
+		-- TURN:mine seguirá siendo la señal oficial cuando el
+		-- C++ esté actualizado.
 
 
     -- ========================================================

@@ -37,9 +37,9 @@ struct PetBattleStats
     uint32 vidaMax = 0;
     uint32 vidaActual = 0;
     uint8  tipo = 0;
-    uint32 daño1 = 0;
-    uint32 daño2 = 0;
-    uint32 daño3 = 0;
+    int32 daño1 = 0;
+    int32 daño2 = 0;
+    int32 daño3 = 0;
 
     // Cooldown restante de cada habilidad.
     //
@@ -222,7 +222,10 @@ enum PetBattleLocaleTextId : uint32
     PETTXT_TYPE_DARKNESS,
     PETTXT_TYPE_BASIC,
     PETTXT_TYPE_UNKNOWN,
-    PETTXT_WILD_NOT_CAPTUREABLE
+    PETTXT_WILD_NOT_CAPTUREABLE,
+	PETTXT_TOO_FAR,
+    PETTXT_ATTACK_HEAL,
+    PETTXT_AUTO_HEAL
 };
 
 class PetBattleMgr
@@ -268,10 +271,10 @@ public:
         uint8 attackerType,
         uint8 defenderType);
 
-    static uint32 ResolveHitDamage(
+    static int32 ResolveHitDamage(
         PetBattleStats const& attacker,
         PetBattleStats const& defender,
-        uint32 danoBase,
+        int32 danoBase,
         bool& outMissed,
         bool& outSuperEfectivo);
 
@@ -327,9 +330,10 @@ public:
     bool ResolveAttackAndAdvance(
         ActivePetBattle& battle,
         bool attackerIsA,
-        uint32 danoBase,
+        int32 danoBase,
         uint8 attackIndex,
-        Player* attackerPlayer);
+        Player* attackerPlayer,
+        bool autoHeal = false);
 
     void EndBattle(
         ActivePetBattle& battle,
@@ -457,9 +461,10 @@ private:
     void StartPetAttack(
         ActivePetBattle& battle,
         bool attackerIsA,
-        uint32 danoBase,
+        int32 danoBase,
         uint8 attackIndex,
-        Player* attackerPlayer);
+        Player* attackerPlayer,
+        bool autoHeal = false);
 
     void SendPetChatFeedback(
         Player* p1,
@@ -492,7 +497,7 @@ private:
         Creature* target,
         Player* attacker,
         Player* defenderOwner,
-        uint32 damage,
+        int32 damage,
         bool missed,
         bool critEffective);
 

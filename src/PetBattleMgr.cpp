@@ -65,6 +65,14 @@ static char const* PETDMG_CHAT_PREFIX = "[PETDMG]";
 // Distancia que mantiene la mascota respecto al rival al llegar para atacar.
 static float const PET_ATTACK_DISTANCE = 1.5f;
 
+// Distancia maxima permitida entre mascotas para iniciar un ataque.
+static float const PET_MAX_ATTACK_DISTANCE = 10.0f;
+
+// Distancia maxima (en yardas) para poder ENVIAR el reto de combate
+// (.dp contra jugador o criatura). Si estan mas lejos, el reto ni
+// siquiera se manda. Configurable via PetBattle.ChallengeMaxDistance.
+static float const PET_CHALLENGE_MAX_DISTANCE_DEFAULT = 10.0f;
+
 // Tiempo aproximado de la animacion de ataque.
 static uint32 const PET_ATTACK_ANIMATION_MS = 900;
 
@@ -191,6 +199,9 @@ std::string PetBattleMgr::GetDefaultText(uint32 textId) const
     case PETTXT_TYPE_BASIC: return "Basic";
     case PETTXT_TYPE_UNKNOWN: return "Unknown";
     case PETTXT_WILD_NOT_CAPTUREABLE: return "That creature is not a capturable pet companion.";
+    case PETTXT_TOO_FAR: return "You are too far from the opponent.";
+    case PETTXT_ATTACK_HEAL: return "{0} has recovered {1} health points. Current HP: {2}";
+    case PETTXT_AUTO_HEAL: return "{0} change opinion and has recovered {1} health points. Current HP: {2}";
     default: return "[PetBattleText:{0}]";
     }
 }
@@ -437,9 +448,9 @@ bool PetBattleMgr::GetPetStats(
     out.vidaMax = f[3].Get<uint32>();
     out.vidaActual = out.vidaMax;
     out.tipo = f[4].Get<uint8>();
-    out.daño1 = f[5].Get<uint32>();
-    out.daño2 = f[6].Get<uint32>();
-    out.daño3 = f[7].Get<uint32>();
+    out.daño1 = f[5].Get<int32>();
+    out.daño2 = f[6].Get<int32>();
+    out.daño3 = f[7].Get<int32>();
 
     return true;
 }
@@ -733,6 +744,23 @@ bool PetBattleMgr::TryStartWildBattle(
         return true;
     }
 
+    // ------------------------------------------------------------
+    // No permitir iniciar el reto si el jugador esta demasiado lejos
+    // de la criatura salvaje.
+    // ------------------------------------------------------------
+    float maxChallengeDistance =
+        sConfigMgr->GetOption<float>(
+            "PetBattle.ChallengeMaxDistance",
+            PET_CHALLENGE_MAX_DISTANCE_DEFAULT);
+
+    if (player->GetDistance(creature) > maxChallengeDistance)
+    {
+        ChatHandler(player->GetSession()).PSendSysMessage(
+            "{}", GetText(player, PETTXT_TOO_FAR));
+
+        return true;
+    }
+
     uint32 entry =
         creature->GetEntry();
 
@@ -891,7 +919,7 @@ bool PetBattleMgr::TryStartWildBattle(
         SelectAvailableAttack(
             wildAttacker);
 
-    uint32 wildDanoBase = 0;
+    int32 wildDanoBase = 0;
 
     switch (wildAttackIndex)
     {
@@ -916,7 +944,8 @@ bool PetBattleMgr::TryStartWildBattle(
         false,
         wildDanoBase,
         wildAttackIndex,
-        nullptr);
+        nullptr,
+        false);
 
     return true;
 }
@@ -925,16 +954,30 @@ bool PetBattleMgr::TryStartWildBattle(
 // Resolucion del daño
 // ================================================================
 
-uint32 PetBattleMgr::ResolveHitDamage(
+int32 PetBattleMgr::ResolveHitDamage(
     PetBattleStats const& attacker,
     PetBattleStats const& defender,
-    uint32 danoBase,
+    int32 danoBase,
     bool& outMissed,
     bool& outSuperEfectivo)
 {
     outMissed = false;
     outSuperEfectivo = false;
 
+    // --------------------------------------------------------------
+    // Las habilidades negativas son curaciones para la mascota
+    // atacante.
+    //
+    // Las curaciones NO tienen miss chance ni variacion de daño.
+    // Si danoBase = -10, cura exactamente 10.
+    // Si danoBase = -15, cura exactamente 15.
+    // --------------------------------------------------------------
+    if (danoBase < 0)
+        return danoBase;
+
+    // --------------------------------------------------------------
+    // Ataque normal: calculamos miss chance y variacion de daño.
+    // --------------------------------------------------------------
     uint32 missChance =
         IsAttackerAtTypeDisadvantage(
             attacker.tipo,
@@ -949,11 +992,12 @@ uint32 PetBattleMgr::ResolveHitDamage(
     }
 
     int32 variado =
-        static_cast<int32>(danoBase) +
+        danoBase +
         irand(
             -PET_DAMAGE_VARIANCE,
             PET_DAMAGE_VARIANCE);
 
+    // Ataque normal: nunca permitimos daño 0 o negativo.
     if (variado < 1)
         variado = 1;
 
@@ -965,7 +1009,7 @@ uint32 PetBattleMgr::ResolveHitDamage(
     outSuperEfectivo =
         multiplier > 1.0f;
 
-    return static_cast<uint32>(
+    return static_cast<int32>(
         std::lround(
             variado * multiplier));
 }
@@ -2153,6 +2197,23 @@ bool PetBattleMgr::StartDuelRequest(
         return false;
     }
 
+    // ------------------------------------------------------------
+    // No permitir enviar el reto si los jugadores estan demasiado
+    // lejos entre si.
+    // ------------------------------------------------------------
+    float maxChallengeDistance =
+        sConfigMgr->GetOption<float>(
+            "PetBattle.ChallengeMaxDistance",
+            PET_CHALLENGE_MAX_DISTANCE_DEFAULT);
+
+    if (challenger->GetDistance(target) > maxChallengeDistance)
+    {
+        ChatHandler(challenger->GetSession()).PSendSysMessage(
+            "{}", GetText(challenger, PETTXT_TOO_FAR));
+
+        return false;
+    }
+
     if (GetBattleByPlayer(
         challenger->GetGUID()))
     {
@@ -3212,7 +3273,7 @@ void PetBattleMgr::HandleAttack(
     bool isA =
         player->GetGUID() == battle.playerA;
 
-    uint32 danoBase = 0;
+    int32 danoBase = 0;
 
     PetBattleStats const& attacker =
         isA
@@ -3254,6 +3315,83 @@ void PetBattleMgr::HandleAttack(
         return;
     }
 
+    // ============================================================
+    // CURACION AUTOMATICA
+    //
+    // Si la mascota activa esta por debajo del porcentaje configurado,
+    // existe una probabilidad configurable de reemplazar el ataque
+    // seleccionado por una curacion.
+    //
+    // Esto solo se aplica cuando el atacante es un JUGADOR. La criatura
+    // salvaje mantiene su comportamiento actual y selecciona ataques
+    // normalmente mediante SelectAvailableAttack().
+    // ============================================================
+
+    uint32 healBelowPercent =
+        sConfigMgr->GetOption<uint32>(
+            "PetBattle.HealBelowPercent",
+            25);
+
+    uint32 healChance =
+        sConfigMgr->GetOption<uint32>(
+            "PetBattle.HealChance",
+            50);
+
+    uint32 healMin =
+        sConfigMgr->GetOption<uint32>(
+            "PetBattle.HealMin",
+            10);
+
+    uint32 healMax =
+        sConfigMgr->GetOption<uint32>(
+            "PetBattle.HealMax",
+            15);
+
+    // Evitar configuraciones invalidas.
+    if (healMax < healMin)
+        std::swap(healMin, healMax);
+
+    // Limitar la probabilidad a 100%.
+    if (healChance > 100)
+        healChance = 100;
+
+    // Limitar el porcentaje de HP a 100%.
+    if (healBelowPercent > 100)
+        healBelowPercent = 100;
+
+    bool shouldHeal = false;
+    bool autoHeal = false;
+
+    if (attacker.vidaMax > 0 &&
+        attacker.vidaActual < attacker.vidaMax)
+    {
+        uint32 hpPercent =
+            static_cast<uint32>(
+                (static_cast<uint64>(attacker.vidaActual) * 100) /
+                attacker.vidaMax);
+
+        // Importante: es MENOR que el porcentaje configurado.
+        // Con HealBelowPercent = 25, 25% exacto no activa la IA.
+        if (hpPercent < healBelowPercent &&
+            healChance > 0 &&
+            urand(1, 100) <= healChance)
+        {
+            shouldHeal = true;
+        }
+    }
+
+    if (shouldHeal)
+    {
+        uint32 healAmount =
+            urand(healMin, healMax);
+
+        // Las curaciones se representan con valores negativos.
+        // Ejemplo: -10 cura 10, -15 cura 15.
+        danoBase =
+            -static_cast<int32>(healAmount);
+        autoHeal = true;
+    }
+
     player->PlayerTalkClass->SendCloseGossip();
 
     // El jugador respondio a tiempo: invalidamos cualquier timeout de
@@ -3265,7 +3403,8 @@ void PetBattleMgr::HandleAttack(
         isA,
         danoBase,
         attackIndex,
-        player);
+        player,
+        autoHeal);
 }
 
 // ================================================================
@@ -3275,9 +3414,10 @@ void PetBattleMgr::HandleAttack(
 void PetBattleMgr::StartPetAttack(
     ActivePetBattle& battle,
     bool attackerIsA,
-    uint32 danoBase,
+    int32 danoBase,
     uint8 attackIndex,
-    Player* attackerPlayer)
+    Player* attackerPlayer,
+    bool autoHeal)
 {
     if (battle.finished)
         return;
@@ -3295,6 +3435,38 @@ void PetBattleMgr::StartPetAttack(
     if (!attackerCreature || !defenderCreature)
         return;
 
+    // ------------------------------------------------------------
+    // Distancia maxima de ataque: 10 yardas.
+    // ------------------------------------------------------------
+    float currentDistance =
+        attackerCreature->GetDistance(defenderCreature);
+
+    if (currentDistance > PET_MAX_ATTACK_DISTANCE)
+    {
+        Player* messagePlayer = attackerPlayer;
+
+        // En combate salvaje el atacante es la criatura, por lo que
+        // no tenemos attackerPlayer. El jugador que observa el combate
+        // siempre es playerA.
+        if (!messagePlayer && battle.isWildBattle)
+        {
+            messagePlayer =
+                ObjectAccessor::FindPlayer(battle.playerA);
+        }
+
+        if (messagePlayer)
+        {
+            ChatHandler(messagePlayer->GetSession()).PSendSysMessage(
+                "{}",
+                GetText(messagePlayer, PETTXT_TOO_FAR));
+
+            if (attackerPlayer)
+                ShowAttackMenu(attackerPlayer, battle);
+        }
+
+        return;
+    }
+
     Position startPosition = attackerCreature->GetPosition();
 
     float dx = defenderCreature->GetPositionX() - attackerCreature->GetPositionX();
@@ -3306,7 +3478,14 @@ void PetBattleMgr::StartPetAttack(
 
     float dirX = dx / distance;
     float dirY = dy / distance;
-    float attackOrientation = std::atan2(dy, dx);
+
+    // Orientacion hacia el rival.
+    float attackOrientation =
+        std::atan2(dy, dx);
+
+    // Al regresar a su posicion inicial, la mascota quedara
+    // mirando exactamente en sentido contrario al rival.
+    float returnOrientation = attackOrientation;
 
     Position attackPosition;
     attackPosition.Relocate(
@@ -3345,7 +3524,9 @@ void PetBattleMgr::StartPetAttack(
         danoBase,
         attackIndex,
         attackerPlayerGuid,
-        startPosition]()
+        startPosition,
+        returnOrientation,
+        autoHeal]()
         {
             auto it = _activeBattles.find(battleKey);
             if (it == _activeBattles.end())
@@ -3376,7 +3557,9 @@ void PetBattleMgr::StartPetAttack(
                 danoBase,
                 attackIndex,
                 attackerPlayerGuid,
-                startPosition]()
+                startPosition,
+                returnOrientation,
+                autoHeal]()
                 {
                     auto it = _activeBattles.find(battleKey);
                     if (it == _activeBattles.end())
@@ -3404,7 +3587,8 @@ void PetBattleMgr::StartPetAttack(
                         attackerIsA,
                         danoBase,
                         attackIndex,
-                        attackerPlayer))
+                        attackerPlayer,
+                        autoHeal))
                     {
                         return;
                     }
@@ -3448,7 +3632,8 @@ void PetBattleMgr::StartPetAttack(
                         [this,
                         battleKey,
                         attackerIsA,
-                        startPosition]()
+                        startPosition,
+                        returnOrientation]()
                         {
                             auto it = _activeBattles.find(battleKey);
                             if (it == _activeBattles.end())
@@ -3463,13 +3648,17 @@ void PetBattleMgr::StartPetAttack(
                             if (!attacker)
                                 return;
 
-                            Creature* defender =
-                                GetActiveSummonCreature(battle, !attackerIsA);
-
-                            if (defender)
+                            // La mascota ya regreso a su posicion inicial.
+                            // Ahora queda mirando en sentido contrario al rival.
+                            if (Creature* defender =
+                                GetActiveSummonCreature(battle, !attackerIsA))
+                            {
                                 attacker->SetFacingToObject(defender);
+                            }
                             else
-                                attacker->SetFacingTo(startPosition.GetOrientation());
+                            {
+                                attacker->SetFacingTo(returnOrientation);
+                            }
 
                             attacker->m_Events.AddEventAtOffset(
                                 [this,
@@ -3498,6 +3687,14 @@ void PetBattleMgr::StartPetAttack(
                                             if (Player* player =
                                                 ObjectAccessor::FindPlayer(battle.playerA))
                                             {
+                                                // El turno se comunica de forma independiente
+                                                // del HPUPDATE. Esto permite que una habilidad de
+                                                // curacion (HPUPDATE:enemy) termine correctamente
+                                                // devolviendo el turno al jugador.
+                                                SendAddonMsg(
+                                                    player,
+                                                    "TURN:mine");
+
                                                 ShowAttackMenu(player, battle);
                                             }
 
@@ -3525,7 +3722,7 @@ void PetBattleMgr::StartPetAttack(
                                             uint8 wildAttackIndex =
                                                 SelectAvailableAttack(wildAttacker);
 
-                                            uint32 wildDanoBase = 0;
+                                            int32 wildDanoBase = 0;
 
                                             switch (wildAttackIndex)
                                             {
@@ -3597,9 +3794,10 @@ void PetBattleMgr::StartPetAttack(
 bool PetBattleMgr::ResolveAttackAndAdvance(
     ActivePetBattle& battle,
     bool attackerIsA,
-    uint32 danoBase,
+    int32 danoBase,
     uint8 attackIndex,
-    Player* attackerPlayer)
+    Player* attackerPlayer,
+    bool autoHeal)
 {
     PetBattleStats& attacker =
         attackerIsA
@@ -3614,7 +3812,7 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
     bool missed = false;
     bool superEfectivo = false;
 
-    uint32 daño =
+    int32 daño =
         ResolveHitDamage(
             attacker,
             defender,
@@ -3622,16 +3820,48 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
             missed,
             superEfectivo);
 
+    // Un valor negativo representa recuperacion de vida para la propia
+    // mascota (la atacante), no daño a la mascota rival.
+    bool const curacionPropia = daño < 0;
+
+    // La mascota realmente afectada por este golpe: la rival si es daño,
+    // o la propia si es curacion.
+    PetBattleStats& afectada =
+        curacionPropia
+        ? attacker
+        : defender;
+
     if (!missed)
     {
         attacker.SetCooldown(
             attackIndex,
             3);
 
-        if (daño >= defender.vidaActual)
-            defender.vidaActual = 0;
+        if (curacionPropia)
+        {
+            int32 curado =
+                static_cast<int32>(attacker.vidaActual) -
+                daño; // daño es negativo, por lo que esto suma vida
+
+            int32 vidaMax =
+                static_cast<int32>(attacker.vidaMax);
+
+            if (curado > vidaMax)
+                curado = vidaMax;
+
+            attacker.vidaActual =
+                static_cast<uint32>(curado);
+        }
         else
-            defender.vidaActual -= daño;
+        {
+            uint32 danoAplicado =
+                static_cast<uint32>(daño);
+
+            if (danoAplicado >= defender.vidaActual)
+                defender.vidaActual = 0;
+            else
+                defender.vidaActual -= danoAplicado;
+        }
     }
 
     Player* a =
@@ -3642,16 +3872,24 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
         ObjectAccessor::FindPlayer(
             battle.playerB);
 
-    // side es relativo a cada cliente: la mascota que recibio el golpe
-    // es "enemy" para el atacante y "mine" para el defensor.
+    // "afectadaEsA" indica si la mascota que cambio de vida (por daño o
+    // por curacion propia) pertenece al equipo A. La mascota rival
+    // (daño) es !attackerIsA; la propia (curacion) es attackerIsA.
+    bool const afectadaEsA =
+        curacionPropia
+        ? attackerIsA
+        : !attackerIsA;
+
+    // side es relativo a cada cliente: "mine" si la mascota afectada es
+    // la suya, "enemy" si es la del rival.
     if (a)
     {
         SendAddonMsg(
             a,
             "HPUPDATE:" +
-            std::string(attackerIsA ? "enemy" : "mine") +
+            std::string(afectadaEsA ? "mine" : "enemy") +
             ":" +
-            std::to_string(defender.vidaActual));
+            std::to_string(afectada.vidaActual));
     }
 
     if (b)
@@ -3659,9 +3897,9 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
         SendAddonMsg(
             b,
             "HPUPDATE:" +
-            std::string(attackerIsA ? "mine" : "enemy") +
+            std::string(afectadaEsA ? "enemy" : "mine") +
             ":" +
-            std::to_string(defender.vidaActual));
+            std::to_string(afectada.vidaActual));
     }
 
     // Animacion del atacante.
@@ -3674,7 +3912,8 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
             EMOTE_ONESHOT_ATTACK_UNARMED);
     }
 
-    // Animacion de la defensa.
+    // Animacion de la defensa. Si el golpe se convirtio en curacion
+    // propia, no corresponde animar herida en la mascota rival.
     Creature* defenderCreature =
         GetActiveSummonCreature(
             battle,
@@ -3687,7 +3926,7 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
             defenderCreature->HandleEmoteCommand(
                 EMOTE_ONESHOT_PARRY_UNARMED);
         }
-        else
+        else if (!curacionPropia)
         {
             defenderCreature->HandleEmoteCommand(
                 defender.vidaActual == 0
@@ -3720,6 +3959,28 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
                 GetTextFmt(b, PETTXT_ATTACK_MISS,
                     { atacanteNombre }));
         }
+        else if (curacionPropia)
+        {
+            std::string curado =
+                std::to_string(-daño);
+
+            uint32 healTextId =
+                autoHeal
+                ? PETTXT_AUTO_HEAL
+                : PETTXT_ATTACK_HEAL;
+
+            ChatHandler(a->GetSession()).PSendSysMessage(
+                "{}",
+                GetTextFmt(a, healTextId,
+                    { atacanteNombre, curado,
+                      std::to_string(afectada.vidaActual) }));
+
+            ChatHandler(b->GetSession()).PSendSysMessage(
+                "{}",
+                GetTextFmt(b, healTextId,
+                    { atacanteNombre, curado,
+                      std::to_string(afectada.vidaActual) }));
+        }
         else
         {
             std::string bonusA =
@@ -3731,23 +3992,41 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
                 "{}",
                 GetTextFmt(a, PETTXT_ATTACK_HIT,
                     { atacanteNombre, std::to_string(daño), bonusA,
-                      std::to_string(defender.vidaActual) }));
+                      std::to_string(afectada.vidaActual) }));
 
             ChatHandler(b->GetSession()).PSendSysMessage(
                 "{}",
                 GetTextFmt(b, PETTXT_ATTACK_HIT,
                     { atacanteNombre, std::to_string(daño), bonusB,
-                      std::to_string(defender.vidaActual) }));
+                      std::to_string(afectada.vidaActual) }));
         }
     }
     else if (a)
     {
-        std::string msg = missed
-            ? GetTextFmt(a, PETTXT_ATTACK_MISS, { atacanteNombre })
-            : GetTextFmt(a, PETTXT_ATTACK_HIT,
+        std::string msg;
+
+        if (missed)
+        {
+            msg = GetTextFmt(a, PETTXT_ATTACK_MISS, { atacanteNombre });
+        }
+        else if (curacionPropia)
+        {
+            uint32 healTextId =
+                autoHeal
+                ? PETTXT_AUTO_HEAL
+                : PETTXT_ATTACK_HEAL;
+
+            msg = GetTextFmt(a, healTextId,
+                { atacanteNombre, std::to_string(-daño),
+                  std::to_string(afectada.vidaActual) });
+        }
+        else
+        {
+            msg = GetTextFmt(a, PETTXT_ATTACK_HIT,
                 { atacanteNombre, std::to_string(daño),
                   superEfectivo ? GetText(a, PETTXT_EFFECTIVE) : "",
-                  std::to_string(defender.vidaActual) });
+                  std::to_string(afectada.vidaActual) });
+        }
 
         ChatHandler(a->GetSession()).PSendSysMessage(
             "{}",
@@ -3755,7 +4034,9 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
     }
 
     ShowFloatingDamageNumber(
-        defenderCreature,
+        curacionPropia
+        ? GetActiveSummonCreature(battle, attackerIsA)
+        : defenderCreature,
         attackerPlayer,
         a,
         daño,
@@ -3763,7 +4044,8 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
         superEfectivo);
 
     if (defender.vidaActual == 0 &&
-        !missed)
+        !missed &&
+        !curacionPropia)
     {
         if (attackerIsA)
         {
@@ -4033,8 +4315,12 @@ void PetBattleMgr::GrantBattleExperience(
 
     uint32 porcentaje =
         vsWild
-        ? PET_XP_PERCENT_VS_WILD
-        : PET_XP_PERCENT_VS_PVP;
+        ? sConfigMgr->GetOption<uint32>(
+            "PetBattle.XpPercentVsWild",
+            PET_XP_PERCENT_VS_WILD)
+        : sConfigMgr->GetOption<uint32>(
+            "PetBattle.XpPercentVsPvp",
+            PET_XP_PERCENT_VS_PVP);
 
     uint32 xpGanada =
         static_cast<uint32>(
@@ -4304,7 +4590,7 @@ void PetBattleMgr::ShowFloatingDamageNumber(
     Creature* target,
     Player* attacker,
     Player* defenderOwner,
-    uint32 damage,
+    int32 damage,
     bool missed,
     bool /*critEffective*/)
 {

@@ -92,34 +92,6 @@ CREATE TABLE IF NOT EXISTS `bp_pet_team` (
 
 
 -- ========================================================
--- DATOS: bp_pet_detach_items
--- ========================================================
--- Actualmente no hay registros.
-
-
--- ========================================================
--- DATOS: bp_pet_info
--- ========================================================
-
-INSERT INTO `bp_pet_info`
-(
-    `guid_jugador`,
-    `spell_id`,
-    `item_entry`,
-    `mascotaID`,
-    `vida`,
-    `tipo`,
-    `cant_daño_1`,
-    `cant_daño_2`,
-    `cant_daño_3`
-)
-VALUES
-    (1, 10678, 8488, 7381, 105, 0, 17, 12, 20),
-    (1, 10711, 8497, 7560, 119, 4, 29, 15, 15),
-    (3, 10711, 8497, 7560, 109, 2, 21, 23, 10);
-
-
--- ========================================================
 -- DATOS: bp_pet_locale
 -- ========================================================
 
@@ -571,33 +543,39 @@ VALUES
      'Normal'),
 
     (74,
-     'Unknown',
-     'Desconocido',
-     'Inconnu',
-     'Unbekannt'),
-
-    (75,
-     'That creature is not a capturable pet companion.',
-     'Esa criatura no es un compañero de mascotas capturable.',
-     'Cette créature n''est pas un compagnon de mascottes capturable.',
-     'Diese Kreatur ist kein fangbarer Haustierbegleiter.');
-
-
--- ========================================================
--- DATOS: bp_pet_team
--- ========================================================
-
-INSERT INTO `bp_pet_team`
-(
-    `guid`,
-    `slot1_creature_entry`,
-    `slot2_creature_entry`,
-    `slot3_creature_entry`
-)
-VALUES
-    (1, 7560, 0, 0),
-    (3, 7560, 0, 0);
-
+	 'Unknown',
+	 'Desconocido',
+	 'Inconnu',
+	 'Unbekannt'),
+	
+	(75,
+	 'That creature is not a capturable pet companion.',
+	 'Esa criatura no es un compañero de mascotas capturable.',
+	 'Cette créature n\'est pas un compagnon de mascottes capturable.',
+	 'Diese Kreatur ist kein fangbarer Haustierbegleiter.'),
+	
+	(76,
+	 'You are too far from the opponent.',
+	 'Estas muy lejos del oponente.',
+	 'Vous êtes trop loin de l\'adversaire.',
+	 'Du bist zu weit vom Gegner entfernt.'),
+	
+	(77,
+	 '{0} has recovered {1} health points. Current HP: {2}',
+	 '{0} ha recuperado {1} puntos de salud. HP actual: {2}',
+	 '{0} a récupéré {1} points de vie. PV actuels : {2}',
+	 '{0} hat {1} Lebenspunkte wiederhergestellt. Aktuelle LP: {2}'),
+	
+	(78,
+	 '{0} change opinion and has recovered {1} health points. Current HP: {2}',
+	 '{0} cambió de opinión y ha recuperado {1} puntos de salud. HP actual: {2}',
+	 '{0} a changé d\'avis et a récupéré {1} points de vie. PV actuels : {2}',
+	 '{0} hat seine Meinung geändert und {1} Gesundheitspunkte wiederhergestellt. Aktuelle LP: {2}')
+ON DUPLICATE KEY UPDATE
+    `enUS` = VALUES(`enUS`),
+    `esES` = VALUES(`esES`),
+    `frFR` = VALUES(`frFR`),
+    `deDE` = VALUES(`deDE`);
 
 -- ========================================================
 -- RESTAURAR CONFIGURACIÓN MYSQL

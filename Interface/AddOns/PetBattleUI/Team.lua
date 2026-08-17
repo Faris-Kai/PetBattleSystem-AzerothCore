@@ -861,22 +861,22 @@ local function UpdateSlotDetails(
 
                     return "|cff808080-|r"
 
-                elseif damage <= 14 then
+                elseif damage < 0 then
 
                     return "|cff00ff00"
-                        .. damage
+                        .. tostring(math.abs(damage))
                         .. "|r"
 
                 elseif damage <= 19 then
 
                     return "|cffffff00"
-                        .. damage
+                        .. tostring(math.abs(damage))
                         .. "|r"
 
                 else
 
                     return "|cffff0000"
-                        .. damage
+                        .. tostring(math.abs(damage))
                         .. "|r"
 
                 end

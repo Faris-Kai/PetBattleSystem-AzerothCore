@@ -17,6 +17,9 @@
 
 PetBattle.Enable = 1
 
+# Distancia limite para combatir
+PetBattle.ChallengeMaxDistance = 10
+
 #
 #	Español
 #		Muestra efecto spell al invocar la mascotas
@@ -36,3 +39,21 @@ PetBattle.SummonVisualSpellId = 47292
 #		Time limit in seconds for the player to respond
 
 PetBattle.TurnTimeoutSeconds = 15
+
+# Experiencia ganada vs criaturas
+PetBattle.XpPercentVsWild = 5
+
+# Experiencia ganada vs criaturas Jugadores
+PetBattle.XpPercentVsPvp = 15
+
+# Cantidad de vida para activar instinto de supervivencia
+PetBattle.HealBelowPercent = 25
+
+# Probabilidad de que el ataque cambie a una cura
+PetBattle.HealChance = 15
+
+# Cura minima
+PetBattle.HealMin = 15
+
+# Cura maxima
+PetBattle.HealMax = 45
