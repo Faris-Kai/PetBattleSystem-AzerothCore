@@ -22,6 +22,23 @@
 #include <algorithm>
 #include <utility>
 
+// Heal chance
+// 50 = 50%
+// 25 = 25%
+// 75 = 75%
+static uint32 const PET_HEAL_CHANCE = 50;
+
+// Daño normal
+static int32 const PET_DAMAGE_MIN = 10;
+static int32 const PET_DAMAGE_MAX = 30;
+
+// Curación: se almacena como valor negativo
+// Ejemplo: -10 = cura 10 HP
+//          -25 = cura 25 HP
+static int32 const PET_HEAL_MIN = -25;
+static int32 const PET_HEAL_MAX = -10;
+
+
 // Texto generico de gossip ya existente por defecto en la tabla `npc_text`
 static uint32 const GOSSIP_TEXT_GENERICO = 68;
 
@@ -54,6 +71,10 @@ static uint32 const PET_TURN_TIMEOUT_SECONDS_DEFAULT = 15;
 // Tiempo maximo para que ambos jugadores realicen la tirada inicial.
 // Es fijo y no depende de PetBattle.TurnTimeoutSeconds.
 static uint32 const PET_COIN_ROLL_TIMEOUT_SECONDS = 15;
+
+// Umbral de daño: por debajo de este valor se usa el visual "bajo",
+// igual o por encima se usa el visual "alto". No aplica a curaciones.
+static uint32 const PET_DAMAGE_VISUAL_THRESHOLD = 19;
 
 // Prefijo utilizado por el addon cuando el debug esta activado.
 static char const* PETDMG_CHAT_PREFIX = "[PETDMG]";
@@ -463,8 +484,17 @@ void PetBattleMgr::CreatePetStats(
     static std::mt19937 rng(std::random_device{}());
 
     std::uniform_int_distribution<int> vidaDist(90, 120);
-    std::uniform_int_distribution<int> dañoDist(10, 30);
     std::uniform_int_distribution<int> tipoDist(0, PET_TIPO_MAX - 1);
+
+    std::uniform_int_distribution<int> dañoDist(
+        PET_DAMAGE_MIN,
+        PET_DAMAGE_MAX);
+
+    std::uniform_int_distribution<int> healDist(
+        PET_HEAL_MIN,
+        PET_HEAL_MAX);
+
+    std::uniform_int_distribution<int> chanceDist(1, 100);
 
     uint32 vida =
         static_cast<uint32>(vidaDist(rng));
@@ -472,14 +502,18 @@ void PetBattleMgr::CreatePetStats(
     uint8 tipo =
         static_cast<uint8>(tipoDist(rng));
 
-    uint32 d1 =
-        static_cast<uint32>(dañoDist(rng));
+    auto GenerarDañoOHabilidad = [&]() -> int32
+        {
+            // 50% por defecto de probabilidad de curación
+            if (chanceDist(rng) <= PET_HEAL_CHANCE)
+                return static_cast<int32>(healDist(rng));
 
-    uint32 d2 =
-        static_cast<uint32>(dañoDist(rng));
+            return static_cast<int32>(dañoDist(rng));
+        };
 
-    uint32 d3 =
-        static_cast<uint32>(dañoDist(rng));
+    int32 d1 = GenerarDañoOHabilidad();
+    int32 d2 = GenerarDañoOHabilidad();
+    int32 d3 = GenerarDañoOHabilidad();
 
     // Buscar el item que enseña este spell de companion.
     // Se guarda el entry para poder devolver exactamente ese item
@@ -3911,14 +3945,62 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
             std::to_string(afectada.vidaActual));
     }
 
+    // ============================================================
     // Animacion del atacante.
+    //
+    // - Si fallo el golpe: se mantiene el emote de ataque normal.
+    // - Si fue una curacion propia (habilidad o auto-heal por HP
+    //   bajo): se reproduce PetBattle.HealVisualSpellId, si esta
+    //   configurado.
+    // - Si fue daño real: se reproduce PetBattle.DamageVisualSpellIdLow
+    //   o PetBattle.DamageVisualSpellIdHigh, segun el daño quede por
+    //   debajo o por encima/igual de PET_DAMAGE_VISUAL_THRESHOLD.
+    //
+    // En cualquier caso, si el spell visual configurado es 0 (no
+    // configurado), se usa el emote de ataque de siempre como
+    // fallback, exactamente igual que PetBattle.SummonVisualSpellId.
+    // ============================================================
     if (Creature* attackerCreature =
         GetActiveSummonCreature(
             battle,
             attackerIsA))
     {
-        attackerCreature->HandleEmoteCommand(
-            EMOTE_ONESHOT_ATTACK_UNARMED);
+        uint32 visualSpellId = 0;
+
+        if (!missed)
+        {
+            if (curacionPropia)
+            {
+                visualSpellId =
+                    sConfigMgr->GetOption<uint32>(
+                        "PetBattle.HealVisualSpellId",
+                        0);
+            }
+            else
+            {
+                visualSpellId =
+                    daño < static_cast<int32>(PET_DAMAGE_VISUAL_THRESHOLD)
+                    ? sConfigMgr->GetOption<uint32>(
+                        "PetBattle.DamageVisualSpellIdLow",
+                        0)
+                    : sConfigMgr->GetOption<uint32>(
+                        "PetBattle.DamageVisualSpellIdHigh",
+                        0);
+            }
+        }
+
+        if (visualSpellId)
+        {
+            attackerCreature->CastSpell(
+                attackerCreature,
+                visualSpellId,
+                true);
+        }
+        else
+        {
+            attackerCreature->HandleEmoteCommand(
+                EMOTE_ONESHOT_ATTACK_UNARMED);
+        }
     }
 
     // Animacion de la defensa. Si el golpe se convirtio en curacion
