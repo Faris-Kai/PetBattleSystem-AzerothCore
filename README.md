@@ -366,7 +366,7 @@ C++/SQL) — it's typically handled with WotLK modding community tools
 
 ---
 
-9. Videos
+## 9. Videos
 
 Menu:
 
