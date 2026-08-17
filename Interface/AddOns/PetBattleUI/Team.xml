@@ -159,7 +159,7 @@
                 justifyV="MIDDLE"
                 text="1">
 
-              <Size x="28" y="40"/>
+              <Size x="24" y="40"/>
 
               <Anchors>
                 <Anchor
@@ -268,7 +268,7 @@
                   point="CENTER"
                   relativeTo="$parent"
                   relativePoint="CENTER"
-                  x="110"
+                  x="120"
                   y="10"/>
             </Anchors>
 
@@ -332,7 +332,7 @@
               point="TOP"
               relativePoint="TOP"
               x="0"
-              y="-220"/>
+              y="-200"/>
         </Anchors>
 
 
@@ -364,7 +364,7 @@
                 justifyV="MIDDLE"
                 text="2">
 
-              <Size x="28" y="40"/>
+              <Size x="24" y="40"/>
 
               <Anchors>
                 <Anchor
@@ -473,7 +473,7 @@
                   point="CENTER"
                   relativeTo="$parent"
                   relativePoint="CENTER"
-                  x="110"
+                  x="120"
                   y="10"/>
             </Anchors>
 
@@ -537,7 +537,7 @@
               point="TOP"
               relativePoint="TOP"
               x="0"
-              y="-340"/>
+              y="-300"/>
         </Anchors>
 
 
@@ -569,7 +569,7 @@
                 justifyV="MIDDLE"
                 text="3">
 
-              <Size x="28" y="40"/>
+              <Size x="24" y="40"/>
 
               <Anchors>
                 <Anchor
@@ -678,7 +678,7 @@
                   point="CENTER"
                   relativeTo="$parent"
                   relativePoint="CENTER"
-                  x="110"
+                  x="120"
                   y="10"/>
             </Anchors>
 
