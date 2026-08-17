@@ -874,15 +874,20 @@ local function UpdateSlotDetails(
                         .. tostring(math.abs(damage))
                         .. "|r"
 
-                elseif damage <= 19 then
+                elseif damage > 0 and damage <= 19 then
 
                     return "|cffffff00"
                         .. tostring(math.abs(damage))
                         .. "|r"
-
-                else
+						
+                elseif damage > 19 then
 
                     return "|cffff0000"
+                        .. tostring(math.abs(damage))
+                        .. "|r"
+                else
+
+                    return ""--agregar color
                         .. tostring(math.abs(damage))
                         .. "|r"
 
@@ -971,7 +976,7 @@ function PetBattleUI_Team_UpdateSlot(
             if button.Model.SetCamDistanceScale then
 
                 button.Model:SetCamDistanceScale(
-                    5
+                    3
                 )
 
             end
