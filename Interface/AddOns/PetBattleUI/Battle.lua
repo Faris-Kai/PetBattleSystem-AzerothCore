@@ -156,10 +156,10 @@ local function GetAttackIcon(damage)
 
 
     -- ========================================================
-    -- MENOR A 0 - CURA
+    -- Menor a 0 - Cura
     -- ========================================================
 
-    if damage < 0 then
+    if damage <= 0 then
 
         return ATTACK_ICON_LOW
 
@@ -167,18 +167,7 @@ local function GetAttackIcon(damage)
 
 
     -- ========================================================
-    -- DAÑO 0
-    -- ========================================================
-
-    if damage == 0 then
-
-        return ATTACK_ICON_LOW
-
-    end
-
-
-    -- ========================================================
-    -- 1 A 20
+    -- 15 A 20
     -- ========================================================
 
     if damage <= 20 then
@@ -274,92 +263,9 @@ local function UpdateAttackDamage(index)
         PetBattleUI_Battle.damages[index] or 0
 
 
-    -- ========================================================
-    -- CURACION
-    --
-    -- Los valores negativos representan curacion.
-    --
-    -- Ejemplo:
-    --     -10 -> mostrar 10 en verde
-    --     -15 -> mostrar 15 en verde
-    --
-    -- math.abs() elimina el signo negativo visualmente.
-    -- ========================================================
-
-    if damage < 0 then
-
-        text:SetText(
-            tostring(
-                math.abs(damage)
-            )
-        )
-
-
-        text:SetTextColor(
-            0.2,
-            1.0,
-            0.2
-        )
-
-
-    -- ========================================================
-    -- DAÑO BAJO
-    --
-    -- 1 a 19 = amarillo
-    -- ========================================================
-
-    elseif damage >= 1 and damage < 20 then
-
-        text:SetText(
-            tostring(damage)
-        )
-
-
-        text:SetTextColor(
-            1.0,
-            1.0,
-            0.0
-        )
-
-
-    -- ========================================================
-    -- DAÑO ALTO
-    --
-    -- 20 o más = rojo
-    -- ========================================================
-
-    elseif damage >= 20 then
-
-        text:SetText(
-            tostring(damage)
-        )
-
-
-        text:SetTextColor(
-            1.0,
-            0.1,
-            0.1
-        )
-
-
-    -- ========================================================
-    -- CERO
-    -- ========================================================
-
-    else
-
-        text:SetText(
-            tostring(damage)
-        )
-
-
-        text:SetTextColor(
-            1.0,
-            1.0,
-            1.0
-        )
-
-    end
+    text:SetText(
+        tostring(damage)
+    )
 
 
     text:Show()
@@ -849,7 +755,7 @@ function PetBattleUI_Battle_SetCooldowns(
     -- NO ACTIVAR BOTONES AQUI.
     --
     -- El temporizador de 2 segundos iniciado por SetTurn()
-    -- es el unico responsable de activarlos.
+    -- es el único responsable de activarlos.
     -- ========================================================
 
 end
@@ -1224,7 +1130,7 @@ function PetBattleUI_Battle_End(
     -- ========================================================
 
     --DEFAULT_CHAT_FRAME:AddMessage(
-    --
+	--
     --    "|cff40ff40[PetBattle]|r "
     --    ..
     --    (
@@ -1232,7 +1138,7 @@ function PetBattleUI_Battle_End(
     --        or
     --        "El combate ha terminado."
     --    )
-    --
+	--
     --)
 
 end

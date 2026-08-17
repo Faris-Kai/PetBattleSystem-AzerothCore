@@ -3770,12 +3770,46 @@ void PetBattleMgr::StartPetAttack(
                                         if (Player* nextPlayer =
                                             ObjectAccessor::FindPlayer(battle.turnPlayer))
                                         {
-                                            ShowAttackMenu(nextPlayer, battle);
+                                            // =========================================================
+                                            // AVISAR AL ADDON QUE ESTE JUGADOR TIENE EL TURNO
+                                            // =========================================================
+
+                                            SendAddonMsg(
+                                                nextPlayer,
+                                                "TURN:mine");
+
+                                            // =========================================================
+                                            // AVISAR AL OTRO JUGADOR QUE YA NO TIENE EL TURNO
+                                            // =========================================================
+
+                                            Player* otherPlayer =
+                                                ObjectAccessor::FindPlayer(
+                                                    attackerIsA
+                                                    ? battle.playerA
+                                                    : battle.playerB);
+
+                                            if (otherPlayer)
+                                            {
+                                                SendAddonMsg(
+                                                    otherPlayer,
+                                                    "TURN:enemy");
+                                            }
+
+                                            // =========================================================
+                                            // ACTUALIZAR MENU / COOLDOWNS DEL SERVIDOR
+                                            // =========================================================
+
+                                            ShowAttackMenu(
+                                                nextPlayer,
+                                                battle);
                                         }
 
-                                        // Empieza el turno del siguiente jugador: si no
-                                        // ataca a tiempo, pierde el duelo.
-                                        ScheduleTurnTimeout(battle);
+                                        // =============================================================
+                                        // EMPIEZA EL TURNO DEL SIGUIENTE JUGADOR
+                                        // =============================================================
+
+                                        ScheduleTurnTimeout(
+                                            battle);
                                     }
                                 },
                                 Milliseconds(PET_ATTACK_RETURN_DELAY_MS));
