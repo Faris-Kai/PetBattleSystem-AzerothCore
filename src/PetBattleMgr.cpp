@@ -3476,7 +3476,7 @@ void PetBattleMgr::StartPetAttack(
         attackerCreature->GetDistance(defenderCreature);
 
 
-    Position startPosition = attackerCreature->GetPosition();
+    Position startPosition = attackerIsA ? battle.spawnPosA : battle.spawnPosB;
 
     float dx = defenderCreature->GetPositionX() - attackerCreature->GetPositionX();
     float dy = defenderCreature->GetPositionY() - attackerCreature->GetPositionY();
@@ -3662,7 +3662,7 @@ void PetBattleMgr::StartPetAttack(
                             if (Creature* defender =
                                 GetActiveSummonCreature(battle, !attackerIsA))
                             {
-                                attacker->SetFacingToObject(defender);
+                                attacker->SetFacingTo(returnOrientation);
                             }
                             else
                             {
@@ -4856,6 +4856,11 @@ Creature* PetBattleMgr::SummonActivePet(
         battle.activeSummonB =
         summon->GetGUID();
 
+    // Guardar posicion de spawn para que el regreso sea siempre exacto
+    if (isA)
+        battle.spawnPosA = summon->GetPosition();
+    else
+        battle.spawnPosB = summon->GetPosition();
     // ============================================================
     // Hacer que ambos se miren
     // ============================================================

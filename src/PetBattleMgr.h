@@ -115,6 +115,8 @@ struct ActivePetBattle
     ObjectGuid playerA;
     ObjectGuid playerB;
     uint32 turnTimeoutToken = 0;
+    Position spawnPosA;
+    Position spawnPosB;
 
     std::array<PetBattleStats, 3> teamA;
     std::array<PetBattleStats, 3> teamB;
