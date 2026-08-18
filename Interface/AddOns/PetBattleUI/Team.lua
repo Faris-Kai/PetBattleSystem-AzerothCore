@@ -501,16 +501,9 @@ local lastCompanionIndex = nil
 -- ============================================================
 -- MOSTRAR / OCULTAR VENTANA
 -- ============================================================
-local DUI_FRAME_NAME = "DragonUICollectionsFrame"
-local DUI_PET_TAB_ID = 2  -- En DragonUI, TABS = { MOUNT, CRITTER } -> CRITTER es el tab 2
 
 local function GetCompanionsWindow()
 
-    if _G[DUI_FRAME_NAME] then
-        return _G[DUI_FRAME_NAME]
-    end
-
-    -- Fallback por si DragonUI no está cargado/activo: usa la ventana original de Blizzard.
     if PetPaperDollFrameCompanionFrame then
 
         return PetPaperDollFrameCompanionFrame:GetParent()
@@ -976,7 +969,7 @@ function PetBattleUI_Team_UpdateSlot(
             if button.Model.SetCamDistanceScale then
 
                 button.Model:SetCamDistanceScale(
-                    3
+                    5
                 )
 
             end
@@ -2304,96 +2297,34 @@ function PetBattleUI_Team_OnActionResult(
 
 end
 
+
 -- ============================================================
--- ABRIR / CERRAR CON LA VENTANA DE COLLECTIONS DE DRAGONUI
+-- ABRIR / CERRAR CON COMPANEROS
 -- ============================================================
 
--- La ventana solo debe mostrar el equipo cuando está abierta Y la
--- pestaña activa es la de mascotas (CRITTER), no la de monturas.
-local function IsDragonUIPetTabActive(frame)
-    return frame.selectedTab == DUI_PET_TAB_ID
-end
+if PetPaperDollFrameCompanionFrame then
 
-local function UpdatePetBattleTeamVisibility()
+    PetPaperDollFrameCompanionFrame:HookScript(
+        "OnShow",
+        function()
 
-    local frame = _G[DUI_FRAME_NAME]
-
-    if frame
-        and frame:IsShown()
-        and IsDragonUIPetTabActive(frame) then
-
-        PetBattleUI_Team_Show()
-
-    else
-
-        PetBattleUI_Team_Hide()
-
-    end
-
-end
-
-
-local duiCollectionsHooked = false
-
-local function TryHookDragonUICollections()
-
-    if duiCollectionsHooked then
-        return
-    end
-
-    local frame = _G[DUI_FRAME_NAME]
-
-    if not frame then
-        return -- La ventana de DragonUI aún no se ha creado (se crea al abrirla la primera vez)
-    end
-
-    duiCollectionsHooked = true
-
-    frame:HookScript("OnShow", UpdatePetBattleTeamVisibility)
-    frame:HookScript("OnHide", UpdatePetBattleTeamVisibility)
-
-    -- Cambiar de pestaña (Monturas <-> Mascotas) sin cerrar la ventana también
-    -- debe actualizar la visibilidad del equipo. Para cuando este OnClick corre,
-    -- PanelTemplates_SetTab ya actualizó frame.selectedTab.
-    for i = 1, 2 do
-
-        local tab = _G[DUI_FRAME_NAME .. "Tab" .. i]
-
-        if tab then
-
-            tab:HookScript("OnClick", UpdatePetBattleTeamVisibility)
+            PetBattleUI_Team_Show()
 
         end
+    )
 
-    end
+
+    PetPaperDollFrameCompanionFrame:HookScript(
+        "OnHide",
+        function()
+
+            PetBattleUI_Team_Hide()
+
+        end
+    )
 
 end
 
-
--- Como el frame de DragonUI se crea de forma perezosa (solo al abrirlo por
--- primera vez), se sondea periódicamente hasta engancharlo. Una vez enganchado,
--- el ticker se detiene solo.
-local duiPollFrame = CreateFrame("Frame")
-local duiPollElapsed = 0
-local DUI_POLL_INTERVAL = 0.5
-
-duiPollFrame:SetScript("OnUpdate", function(self, elapsed)
-
-    duiPollElapsed = duiPollElapsed + elapsed
-
-    if duiPollElapsed < DUI_POLL_INTERVAL then
-        return
-    end
-
-    duiPollElapsed = 0
-
-    TryHookDragonUICollections()
-
-    if duiCollectionsHooked then
-        self:SetScript("OnUpdate", nil) -- deja de sondear, ya no hace falta
-    end
-
-end)
 
 -- ============================================================
 -- CONFIGURACION DE SLOTS
