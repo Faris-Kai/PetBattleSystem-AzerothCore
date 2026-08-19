@@ -318,7 +318,7 @@ function PetBattleUI:OnServerMessage(msg)
     -- COOLDOWNS
     -- ========================================================
 
-    elseif cmd == "ATKCD" then
+    elseif cmd == "COOLDOWNS" then
 
         PetBattleUI_Battle_SetCooldowns(
 
@@ -649,21 +649,6 @@ end
 
 
 -- ============================================================
--- OCULTAR GOSSIP
--- ============================================================
-
-local function PetBattleUI_HideGossip()
-
-    if GossipFrame then
-
-        CloseGossip()
-
-    end
-
-end
-
-
--- ============================================================
 -- EVENTOS
 -- ============================================================
 
@@ -709,21 +694,6 @@ eventFrame:SetScript(
             )
 
 
-            -- Ocultar Gossip cada vez que intente abrirse.
-
-            if GossipFrame then
-
-                GossipFrame:HookScript(
-                    "OnShow",
-                    function(self)
-
-                        self:Hide()
-
-                    end
-                )
-
-            end
-
 
         -- ====================================================
         -- CHAT ADDON
@@ -747,24 +717,10 @@ eventFrame:SetScript(
             end
 
 
-        -- ====================================================
-        -- GOSSIP
-        -- ====================================================
-
-        elseif event == "GOSSIP_SHOW" then
-
-            -- Primero leemos los cooldowns.
-
-            if PetBattleUI_BattleFrame:IsShown() then
-
-                PetBattleUI_SyncCooldownsFromGossip()
-
-            end
-
 
             -- Luego ocultamos el Gossip.
 
-            PetBattleUI_HideGossip()
+           -- PetBattleUI_HideGossip()
 
         end
 
