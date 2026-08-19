@@ -319,14 +319,10 @@ public:
         Player* player,
         ActivePetBattle& battle);
 
-    void ShowAttackMenu(
-        Player* player,
-        ActivePetBattle& battle);
-
-    void HandleAttack(
-        Player* player,
-        ActivePetBattle& battle,
-        uint8 attackIndex);
+    void SendCooldownsToClient(Player* player, PetBattleStats const& pet);
+    bool UseGossipUI() const;
+    void ShowAttackMenu(Player* player, ActivePetBattle& battle);
+    void HandleAttack(Player* player, ActivePetBattle& battle, uint8 attackIndex);
 
     // Resuelve el daño de un ataque individual.
     bool ResolveAttackAndAdvance(
