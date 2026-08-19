@@ -1,0 +1,17 @@
+## Interface: 30300
+## Title: PetBattleUI
+## Notes: Interfaz grafica del sistema de combate de mascotas (reto de duelo, moneda, barras de vida, equipo por drag&drop). Reemplaza los menus gossip de mod_pet_battle.
+## Author: -
+## Version: 0.1
+## SavedVariables: PetBattleUI_Settings
+
+Localization.lua
+Core.lua
+Duel.xml
+Duel.lua
+Coin.xml
+Coin.lua
+Battle.xml
+Battle.lua
+Team.xml
+Team.lua
