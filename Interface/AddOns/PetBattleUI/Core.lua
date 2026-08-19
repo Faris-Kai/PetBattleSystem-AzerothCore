@@ -694,9 +694,9 @@ eventFrame:SetScript(
 
         if event == "PLAYER_LOGIN" then
 
-            RegisterAddonMessagePrefix(
-                ADDON_PREFIX
-            )
+            --RegisterAddonMessagePrefix(
+            --    ADDON_PREFIX
+            --)
 
 
             PetBattleUI_RestorePosition(
