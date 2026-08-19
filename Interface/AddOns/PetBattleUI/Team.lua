@@ -950,6 +950,11 @@ function PetBattleUI_Team_UpdateSlot(
 
     button.creatureID =
         creatureID
+		
+    button.tipo = tipo
+    button.d1   = d1
+    button.d2   = d2
+    button.d3   = d3
 
 
     -- ========================================================
@@ -1050,7 +1055,11 @@ function PetBattleUI_Team_ClearSlot(slotIndex)
     button.spellID = nil
     button.creatureName = nil
     button.creatureID = nil
-
+    -- AGREGÁ estas cuatro líneas:
+    button.tipo         = nil
+    button.d1           = nil
+    button.d2           = nil
+    button.d3           = nil
 
     if button.Model then
         button.Model:Hide()
@@ -1949,7 +1958,6 @@ function PetBattleUI_Team_OnDragStop(slotButton)
         return
     end
 
-
     local sourceSlot =
         dragSourceSlot
 
@@ -1957,16 +1965,128 @@ function PetBattleUI_Team_OnDragStop(slotButton)
 
     ClearCursor()
 
+    local actionSlot = GetActionSlot()
 
-    if MouseIsOver(
-        GetActionSlot()
-    ) then
+    if actionSlot and MouseIsOver(actionSlot) then
 
-        SetActionSlot(
-            sourceSlot
-        )
-
+        SetActionSlot(sourceSlot)
         return
+
+    end
+
+    -- Verificar si el drag termino sobre alguno de los slots del equipo
+    for i = 1, TEAM_MAX_SLOTS do
+
+        local targetButton = GetTeamSlotButton(i)
+
+        if targetButton
+            and i ~= sourceSlot
+            and MouseIsOver(targetButton) then
+
+            -- Intercambiar los dos slots
+            local sourceButton = GetTeamSlotButton(sourceSlot)
+
+            if not sourceButton then
+                return
+            end
+
+            local sourceSpellID    = sourceButton.spellID
+            local sourceName       = sourceButton.creatureName
+            local sourceCreatureID = sourceButton.creatureID
+            local sourceIcon       = sourceButton.Icon and sourceButton.Icon:GetTexture()
+            local sourceTipo       = sourceButton.tipo
+            local sourceD1         = sourceButton.d1
+            local sourceD2         = sourceButton.d2
+            local sourceD3         = sourceButton.d3
+
+            local targetSpellID    = targetButton.spellID
+            local targetName       = targetButton.creatureName
+            local targetCreatureID = targetButton.creatureID
+            local targetIcon       = targetButton.Icon and targetButton.Icon:GetTexture()
+            local targetTipo       = targetButton.tipo
+            local targetD1         = targetButton.d1
+            local targetD2         = targetButton.d2
+            local targetD3         = targetButton.d3
+
+            -- Aplicar en ambos botones
+            sourceButton.spellID      = targetSpellID
+            sourceButton.creatureName = targetName
+            sourceButton.creatureID   = targetCreatureID
+            sourceButton.tipo         = targetTipo
+            sourceButton.d1           = targetD1
+            sourceButton.d2           = targetD2
+            sourceButton.d3           = targetD3
+
+            targetButton.spellID      = sourceSpellID
+            targetButton.creatureName = sourceName
+            targetButton.creatureID   = sourceCreatureID
+            targetButton.tipo         = sourceTipo
+            targetButton.d1           = sourceD1
+            targetButton.d2           = sourceD2
+            targetButton.d3           = sourceD3
+
+            if sourceButton.Icon then
+                sourceButton.Icon:SetTexture(
+                    targetIcon or "Interface\\PaperDoll\\UI-Backpack-EmptySlot"
+                )
+                sourceButton.Icon:Show()
+            end
+
+            if targetButton.Icon then
+                targetButton.Icon:SetTexture(
+                    sourceIcon or "Interface\\PaperDoll\\UI-Backpack-EmptySlot"
+                )
+                targetButton.Icon:Show()
+            end
+
+            -- Actualizar modelos 3D
+            if sourceButton.Model then
+                if sourceButton.creatureID then
+                    sourceButton.Model:SetCreature(sourceButton.creatureID)
+                    if sourceButton.Model.SetCamDistanceScale then
+                        sourceButton.Model:SetCamDistanceScale(5)
+                    end
+                    if sourceButton.Model.SetRotation then
+                        sourceButton.Model:SetRotation(-70)
+                    end
+                    sourceButton.Model:Show()
+                else
+                    sourceButton.Model:Hide()
+                end
+            end
+
+            if targetButton.Model then
+                if targetButton.creatureID then
+                    targetButton.Model:SetCreature(targetButton.creatureID)
+                    if targetButton.Model.SetCamDistanceScale then
+                        targetButton.Model:SetCamDistanceScale(5)
+                    end
+                    if targetButton.Model.SetRotation then
+                        targetButton.Model:SetRotation(-70)
+                    end
+                    targetButton.Model:Show()
+                else
+                    targetButton.Model:Hide()
+                end
+            end
+
+            UpdateSlotName(sourceButton, sourceButton.creatureName)
+            UpdateSlotName(targetButton, targetButton.creatureName)
+
+            UpdateSlotDetails(sourceButton, sourceButton.tipo, sourceButton.d1, sourceButton.d2, sourceButton.d3)
+            UpdateSlotDetails(targetButton, targetButton.tipo, targetButton.d1, targetButton.d2, targetButton.d3)
+
+            if PetBattleUI and PetBattleUI.Send then
+                PetBattleUI:Send(
+                    "SWAP:" .. sourceSlot .. ":" .. i
+                )
+            end
+
+            PetBattleUI_Team_SelectSlot(i)
+
+            return
+
+        end
 
     end
 
