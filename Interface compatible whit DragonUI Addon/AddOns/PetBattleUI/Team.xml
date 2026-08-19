@@ -816,7 +816,7 @@
     <Scripts>
 
       <OnLoad>
-        PetBattleUI_Team_Localize()
+        <!--PetBattleUI_Team_Localize("") -->
       </OnLoad>
 
     </Scripts>
