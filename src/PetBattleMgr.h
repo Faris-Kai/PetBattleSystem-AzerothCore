@@ -1,3 +1,20 @@
+/*
+ * This file is part of the SyphrenaCore Project. See AUTHORS file for Copyright information
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the
+ * Free Software Foundation; either version 2 of the License, or (at your
+ * option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #ifndef MOD_PET_BATTLE_MGR_H
 #define MOD_PET_BATTLE_MGR_H
 
@@ -37,9 +54,9 @@ struct PetBattleStats
     uint32 vidaMax = 0;
     uint32 vidaActual = 0;
     uint8  tipo = 0;
-    int32 daño1 = 0;
-    int32 daño2 = 0;
-    int32 daño3 = 0;
+    int32 dano1 = 0;
+    int32 dano2 = 0;
+    int32 dano3 = 0;
 
     // Cooldown restante de cada habilidad.
     //
@@ -115,6 +132,10 @@ struct ActivePetBattle
     ObjectGuid playerA;
     ObjectGuid playerB;
     uint32 turnTimeoutToken = 0;
+
+    // Posicion de spawn de la mascota activa: se usa como punto de
+    // regreso exacto tras cada ataque, en vez de leerla de nuevo del
+    // Creature (que ya se habra movido para atacar).
     Position spawnPosA;
     Position spawnPosB;
 
@@ -225,9 +246,10 @@ enum PetBattleLocaleTextId : uint32
     PETTXT_TYPE_BASIC,
     PETTXT_TYPE_UNKNOWN,
     PETTXT_WILD_NOT_CAPTUREABLE,
-	PETTXT_TOO_FAR,
+    PETTXT_TOO_FAR,
     PETTXT_ATTACK_HEAL,
-    PETTXT_AUTO_HEAL
+    PETTXT_AUTO_HEAL,
+    PETTXT_SWITCH_NONE_AVAILABLE
 };
 
 class PetBattleMgr
@@ -251,6 +273,14 @@ public:
     void LoadPlayerTeam(ObjectGuid::LowType guidLow, std::array<PetBattleTeamSlot, 3>& outTeam);
     void SavePlayerTeamSlot(ObjectGuid::LowType guidLow, uint8 slotIndex /*0-2*/, uint32 creatureEntry);
     void ClearPlayerTeam(ObjectGuid::LowType guidLow);
+    // para puntaje
+    void AddPlayerVictory(ObjectGuid guid);
+    void AddPlayerLose(ObjectGuid guid);
+    void AddPlayerSurrender(ObjectGuid guid);
+    
+
+
+    bool UseGossipUI() const;
 
     // ---- Estadisticas de mascotas ----
     bool GetPetStats(ObjectGuid::LowType guidLow, uint32 creatureEntry, PetBattleStats& out);
@@ -282,6 +312,12 @@ public:
 
     // ---- Menu de configuracion de equipo ----
     void ShowTeamMenu(Player* player);
+
+    // Logique partagee entre la commande .dp (sans argument) et le
+    // bouton "Duel de Mascotte" de l'addon (message STARTBATTLE) :
+    // regarde la cible actuelle du joueur et lance l'action adaptee
+    // (defi PvP, combat sauvage, ou menu d'equipe si rien de cible).
+    void StartBattleAgainstTarget(Player* player);
 
     void HandleTeamGossipAction(
         Player* player,
@@ -319,12 +355,39 @@ public:
         Player* player,
         ActivePetBattle& battle);
 
-    void SendCooldownsToClient(Player* player, PetBattleStats const& pet);
-    bool UseGossipUI() const;
-    void ShowAttackMenu(Player* player, ActivePetBattle& battle);
-    void HandleAttack(Player* player, ActivePetBattle& battle, uint8 attackIndex);
+    void SendCooldownsToClient(
+        Player* player,
+        PetBattleStats const& pet);
 
-    // Resuelve el daño de un ataque individual.
+    void ShowAttackMenu(
+        Player* player,
+        ActivePetBattle& battle);
+
+    void HandleAttack(
+        Player* player,
+        ActivePetBattle& battle,
+        uint8 attackIndex);
+
+    // Le joueur choisit de passer son tour (bouton "Passer" de
+    // l'addon) : le tour se termine immediatement, sans degats.
+    void HandlePass(
+        Player* player,
+        ActivePetBattle& battle);
+
+    // Le joueur change de mascotte active en plein combat (bouton
+    // "Changer de mascotte" de l'addon) : consomme le tour.
+    void HandleSwitchPet(
+        Player* player,
+        ActivePetBattle& battle);
+
+    // Logique de transition de tour partagee entre HandlePass et
+    // HandleSwitchPet (aucun degat/soin a resoudre, contrairement a
+    // HandleAttack qui gere sa propre transition apres l'animation).
+    void AdvanceTurnAfterAction(
+        ActivePetBattle& battle,
+        bool actorIsA);
+
+    // Resuelve el dano de un ataque individual.
     bool ResolveAttackAndAdvance(
         ActivePetBattle& battle,
         bool attackerIsA,
@@ -336,7 +399,8 @@ public:
     void EndBattle(
         ActivePetBattle& battle,
         ObjectGuid winnerGuid,
-        ObjectGuid loserGuid);
+        ObjectGuid loserGuid,
+        bool wasSurrender = false);
 
     // Cerrar la ventana del combate equivale a abandonar la batalla.
     // El jugador que abandona pierde inmediatamente.
@@ -379,7 +443,7 @@ private:
 
     // Envia al addon el equipo completo tal como esta guardado en
     // equipo_mascotas/estatus_mascotas (los 3 slots, con nombre,
-    // tipo y daños). Se usa para que la UI del addon siempre
+    // tipo y danos). Se usa para que la UI del addon siempre
     // refleje el equipo actual al abrir la ventana de Companeros,
     // en vez de depender solo de lo que el cliente pinto de forma
     // optimista durante la sesion.
@@ -444,7 +508,7 @@ private:
     //        ↓
     //   animacion de ataque
     //        ↓
-    //   resolver daño
+    //   resolver dano
     //        ↓
     //   regresar a posicion inicial
     //        ↓
@@ -488,7 +552,7 @@ private:
         ActivePetBattle const& battle);
 
     // ============================================================
-    // Feedback de daño
+    // Feedback de dano
     // ============================================================
 
     void ShowFloatingDamageNumber(

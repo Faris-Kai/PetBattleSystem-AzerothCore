@@ -1,4 +1,5 @@
 #include "PetBattleMgr.h"
+#include "WorldSession.h"
 #include "DatabaseEnv.h"
 #include "ObjectMgr.h"
 #include "ObjectAccessor.h"
@@ -6,6 +7,7 @@
 #include "Chat.h"
 #include "Player.h"
 #include "Creature.h"
+#include "MotionMaster.h"
 #include "Item.h"
 #include "EventProcessor.h"
 #include "TemporarySummon.h"
@@ -28,7 +30,7 @@
 // 75 = 75%
 static uint32 const PET_HEAL_CHANCE = 50;
 
-// Daño normal
+// dano normal
 static int32 const PET_DAMAGE_MIN = 10;
 static int32 const PET_DAMAGE_MAX = 30;
 
@@ -38,10 +40,26 @@ static int32 const PET_DAMAGE_MAX = 30;
 static int32 const PET_HEAL_MIN = -25;
 static int32 const PET_HEAL_MAX = -10;
 
-// Valor por defecto si "PetBattle.UseGossipUI" no esta en el .conf.
-// true  = comportamiento actual (se abren gossip menus ademas del addon)
-// false = solo comunicacion por SendAddonMsg, sin ninguna ventana de gossip
-static bool const PET_USE_GOSSIP_UI_DEFAULT = true;
+// Valeur par defaut si "PetBattle.UseGossipUI" n'est pas dans le .conf.
+// true  = comportement d'origine (menus gossip ouverts en plus de l'addon)
+// false = communication uniquement par SendAddonMsg, aucune fenetre gossip
+static bool const PET_USE_GOSSIP_UI_DEFAULT = false;
+
+// CreatureTemplate in ce fork n'a pas de GetModelByIdx()/CreatureModel :
+// juste 4 champs Modelid1-4 bruts. Petit helper pour garder la meme boucle
+// modelIndex 0..3 que le code d'origine (AzerothCore moderne).
+static uint32 GetCreatureTemplateModelId(
+    CreatureTemplate const* tmpl,
+    uint8 idx)
+{
+    if (!tmpl)
+        return 0;
+
+    CreatureModel const* model = tmpl->GetModelByIdx(idx);
+
+    return model ? model->CreatureDisplayID : 0;
+}
+
 
 // Texto generico de gossip ya existente por defecto en la tabla `npc_text`
 static uint32 const GOSSIP_TEXT_GENERICO = 68;
@@ -76,7 +94,7 @@ static uint32 const PET_TURN_TIMEOUT_SECONDS_DEFAULT = 15;
 // Es fijo y no depende de PetBattle.TurnTimeoutSeconds.
 static uint32 const PET_COIN_ROLL_TIMEOUT_SECONDS = 15;
 
-// Umbral de daño: por debajo de este valor se usa el visual "bajo",
+// Umbral de dano: por debajo de este valor se usa el visual "bajo",
 // igual o por encima se usa el visual "alto". No aplica a curaciones.
 static uint32 const PET_DAMAGE_VISUAL_THRESHOLD = 19;
 
@@ -227,6 +245,7 @@ std::string PetBattleMgr::GetDefaultText(uint32 textId) const
     case PETTXT_TOO_FAR: return "You are too far from the opponent.";
     case PETTXT_ATTACK_HEAL: return "{0} has recovered {1} health points. Current HP: {2}";
     case PETTXT_AUTO_HEAL: return "{0} change opinion and has recovered {1} health points. Current HP: {2}";
+    case PETTXT_SWITCH_NONE_AVAILABLE: return "You have no other pet available to switch to.";
     default: return "[PetBattleText:{0}]";
     }
 }
@@ -496,12 +515,67 @@ bool PetBattleMgr::GetPetStats(
     out.itemEntry = f[2].Get<uint32>();
     out.vidaMax = f[3].Get<uint32>();
     out.vidaActual = out.vidaMax;
-    out.tipo = f[4].Get<uint8>();
-    out.daño1 = f[5].Get<int32>();
-    out.daño2 = f[6].Get<int32>();
-    out.daño3 = f[7].Get<int32>();
+    out.tipo = f[4].Get<int8>();
+    out.dano1 = f[5].Get<int32>();
+    out.dano2 = f[6].Get<int32>();
+    out.dano3 = f[7].Get<int32>();
 
     return true;
+}
+//victoria
+void PetBattleMgr::AddPlayerVictory(
+    ObjectGuid guid)
+{
+    if (guid.IsEmpty())
+        return;
+
+    uint64 guidLow =
+        guid.GetCounter();
+
+    WorldDatabase.Execute(
+        "INSERT INTO bp_pet_player_score "
+        "(guid, victory, lose, rendiciones) "
+        "VALUES ({}, 1, 0, 0) "
+        "ON DUPLICATE KEY UPDATE "
+        "victory = victory + 1",
+        guidLow);
+}
+//derrota
+void PetBattleMgr::AddPlayerLose(
+    ObjectGuid guid)
+{
+    if (guid.IsEmpty())
+        return;
+
+    uint64 guidLow =
+        guid.GetCounter();
+
+    WorldDatabase.Execute(
+        "INSERT INTO bp_pet_player_score "
+        "(guid, victory, lose, rendiciones) "
+        "VALUES ({}, 0, 1, 0) "
+        "ON DUPLICATE KEY UPDATE "
+        "lose = lose + 1",
+        guidLow);
+}
+//rendición
+void PetBattleMgr::AddPlayerSurrender(
+    ObjectGuid guid)
+{
+    if (guid.IsEmpty())
+        return;
+
+    uint64 guidLow =
+        guid.GetCounter();
+
+    WorldDatabase.Execute(
+        "INSERT INTO bp_pet_player_score "
+        "(guid, victory, lose, rendiciones) "
+        "VALUES ({}, 0, 1, 1) "
+        "ON DUPLICATE KEY UPDATE "
+        "lose = lose + 1, "
+        "rendiciones = rendiciones + 1",
+        guidLow);
 }
 
 void PetBattleMgr::CreatePetStats(
@@ -514,7 +588,7 @@ void PetBattleMgr::CreatePetStats(
     std::uniform_int_distribution<int> vidaDist(90, 120);
     std::uniform_int_distribution<int> tipoDist(0, PET_TIPO_MAX - 1);
 
-    std::uniform_int_distribution<int> dañoDist(
+    std::uniform_int_distribution<int> danoDist(
         PET_DAMAGE_MIN,
         PET_DAMAGE_MAX);
 
@@ -530,18 +604,18 @@ void PetBattleMgr::CreatePetStats(
     uint8 tipo =
         static_cast<uint8>(tipoDist(rng));
 
-    auto GenerarDañoOHabilidad = [&]() -> int32
+    auto GenerarDanoOHabilidad = [&]() -> int32
         {
             // 50% por defecto de probabilidad de curación
             if (chanceDist(rng) <= PET_HEAL_CHANCE)
                 return static_cast<int32>(healDist(rng));
 
-            return static_cast<int32>(dañoDist(rng));
+            return static_cast<int32>(danoDist(rng));
         };
 
-    int32 d1 = GenerarDañoOHabilidad();
-    int32 d2 = GenerarDañoOHabilidad();
-    int32 d3 = GenerarDañoOHabilidad();
+    int32 d1 = GenerarDanoOHabilidad();
+    int32 d2 = GenerarDanoOHabilidad();
+    int32 d3 = GenerarDanoOHabilidad();
 
     // Buscar el item que enseña este spell de companion.
     // Se guarda el entry para poder devolver exactamente ese item
@@ -592,6 +666,9 @@ void PetBattleMgr::RegisterPetIfSummonSpell(
     if (!player)
         return;
 
+    uint32 accountId =
+        player->GetSession()->GetAccountId();
+
     SpellInfo const* spellInfo =
         sSpellMgr->GetSpellInfo(spellID);
 
@@ -616,6 +693,52 @@ void PetBattleMgr::RegisterPetIfSummonSpell(
         if (!sObjectMgr->GetCreatureTemplate(creatureEntry))
             continue;
 
+        // ============================================
+        // Buscar el item que enseña esta mascota
+        // ============================================
+
+        uint32 itemEntry = 0;
+
+        QueryResult itemResult =
+            WorldDatabase.Query(
+                "SELECT entry "
+                "FROM item_template "
+                "WHERE spellid_1 = {} "
+                "OR spellid_2 = {} "
+                "OR spellid_3 = {} "
+                "OR spellid_4 = {} "
+                "OR spellid_5 = {} "
+                "LIMIT 1",
+                spellID,
+                spellID,
+                spellID,
+                spellID,
+                spellID);
+
+        if (itemResult)
+        {
+            itemEntry =
+                itemResult->Fetch()[0].Get<uint32>();
+        }
+
+        // ============================================
+        // Guardar en el bestiario de la cuenta
+        // ============================================
+
+        if (itemEntry != 0)
+        {
+            WorldDatabase.Execute(
+                "INSERT IGNORE INTO bp_pet_bestiary "
+                "(account_id, item_entry) "
+                "VALUES ({}, {})",
+                accountId,
+                itemEntry);
+        }
+
+        // ============================================
+        // Registro normal de estadísticas
+        // ============================================
+
         PetBattleStats existing;
 
         if (GetPetStats(
@@ -623,38 +746,19 @@ void PetBattleMgr::RegisterPetIfSummonSpell(
             creatureEntry,
             existing))
         {
-            // Migraciones/filas antiguas pueden no tener el item asociado.
-            // Si encontramos ahora el item que enseña el spell, lo guardamos.
-            if (existing.itemEntry == 0)
+            // Migraciones/filas antiguas pueden no tener
+            // el item asociado.
+            if (existing.itemEntry == 0 &&
+                itemEntry != 0)
             {
-                QueryResult itemResult = WorldDatabase.Query(
-                    "SELECT entry "
-                    "FROM item_template "
-                    "WHERE spellid_1 = {} "
-                    "OR spellid_2 = {} "
-                    "OR spellid_3 = {} "
-                    "OR spellid_4 = {} "
-                    "OR spellid_5 = {} "
-                    "LIMIT 1",
-                    spellID,
-                    spellID,
-                    spellID,
-                    spellID,
-                    spellID);
-
-                if (itemResult)
-                {
-                    uint32 itemEntry =
-                        itemResult->Fetch()[0].Get<uint32>();
-
-                    WorldDatabase.Execute(
-                        "UPDATE bp_pet_info "
-                        "SET item_entry = {} "
-                        "WHERE guid_jugador = {} AND mascotaID = {}",
-                        itemEntry,
-                        guidLow,
-                        creatureEntry);
-                }
+                WorldDatabase.Execute(
+                    "UPDATE bp_pet_info "
+                    "SET item_entry = {} "
+                    "WHERE guid_jugador = {} "
+                    "AND mascotaID = {}",
+                    itemEntry,
+                    guidLow,
+                    creatureEntry);
             }
 
             continue;
@@ -666,6 +770,7 @@ void PetBattleMgr::RegisterPetIfSummonSpell(
             creatureEntry);
     }
 }
+
 
 // ================================================================
 // Deteccion de companions por modelo
@@ -723,18 +828,19 @@ void PetBattleMgr::EnsurePetSpellIndexBuilt()
                 modelIndex < 4;
                 ++modelIndex)
             {
-                CreatureModel const* model =
-                    creatureTemplate->GetModelByIdx(
+                uint32 displayId =
+                    GetCreatureTemplateModelId(
+                        creatureTemplate,
                         modelIndex);
 
-                if (!model ||
-                    !model->CreatureDisplayID)
+                if (!displayId)
+
                 {
                     continue;
                 }
 
-                uint32 displayId =
-                    model->CreatureDisplayID;
+
+
 
                 _petSpellIndexByEntry.emplace(
                     displayId,
@@ -762,18 +868,19 @@ uint32 PetBattleMgr::FindPetSummonSpellForCreatureEntry(
         modelIndex < 4;
         ++modelIndex)
     {
-        CreatureModel const* model =
-            creatureTemplate->GetModelByIdx(
+        uint32 displayId =
+            GetCreatureTemplateModelId(
+                creatureTemplate,
                 modelIndex);
 
-        if (!model ||
-            !model->CreatureDisplayID)
+        if (!displayId)
+
         {
             continue;
         }
 
-        uint32 displayId =
-            model->CreatureDisplayID;
+
+
 
         auto it =
             _petSpellIndexByEntry.find(
@@ -801,7 +908,7 @@ bool PetBattleMgr::TryStartWildBattle(
         player->GetGUID()))
     {
         ChatHandler(player->GetSession()).PSendSysMessage(
-            "{}", GetText(player, PETTXT_ALREADY_BATTLE));
+            "{}", GetText(player, PETTXT_ALREADY_BATTLE).c_str());
 
         return true;
     }
@@ -818,7 +925,7 @@ bool PetBattleMgr::TryStartWildBattle(
     if (player->GetDistance(creature) > maxChallengeDistance)
     {
         ChatHandler(player->GetSession()).PSendSysMessage(
-            "{}", GetText(player, PETTXT_TOO_FAR));
+            "{}", GetText(player, PETTXT_TOO_FAR).c_str());
 
         return true;
     }
@@ -847,7 +954,7 @@ bool PetBattleMgr::TryStartWildBattle(
         ChatHandler(player->GetSession()).PSendSysMessage(
             "{}",
             GetTextFmt(player, PETTXT_WILD_NEED_SLOT1,
-                { creature->GetName() }));
+                { creature->GetName() }).c_str());
 
         return true;
     }
@@ -912,15 +1019,15 @@ bool PetBattleMgr::TryStartWildBattle(
         static_cast<uint8>(
             urand(0, PET_TIPO_MAX - 1));
 
-    wild.daño1 =
+    wild.dano1 =
         static_cast<uint32>(
             urand(10, 30));
 
-    wild.daño2 =
+    wild.dano2 =
         static_cast<uint32>(
             urand(10, 30));
 
-    wild.daño3 =
+    wild.dano3 =
         static_cast<uint32>(
             urand(10, 30));
 
@@ -936,7 +1043,7 @@ bool PetBattleMgr::TryStartWildBattle(
     ChatHandler(player->GetSession()).PSendSysMessage(
         "{}",
         GetTextFmt(player, PETTXT_WILD_START,
-            { creature->GetName(), GetTipoName(player, wild.tipo) }));
+            { creature->GetName(), GetTipoName(player, wild.tipo) }).c_str());
 
     // ------------------------------------------------------------
     // Invocar ambas mascotas.
@@ -987,17 +1094,17 @@ bool PetBattleMgr::TryStartWildBattle(
     {
     case 1:
         wildDanoBase =
-            wildAttacker.daño1;
+            wildAttacker.dano1;
         break;
 
     case 2:
         wildDanoBase =
-            wildAttacker.daño2;
+            wildAttacker.dano2;
         break;
 
     case 3:
         wildDanoBase =
-            wildAttacker.daño3;
+            wildAttacker.dano3;
         break;
     }
 
@@ -1038,7 +1145,7 @@ int32 PetBattleMgr::ResolveHitDamage(
         return danoBase;
 
     // --------------------------------------------------------------
-    // Ataque normal: calculamos miss chance y variacion de daño.
+    // Ataque normal: calculamos miss chance y variacion de dano.
     // --------------------------------------------------------------
     uint32 missChance =
         IsAttackerAtTypeDisadvantage(
@@ -1059,7 +1166,7 @@ int32 PetBattleMgr::ResolveHitDamage(
             -PET_DAMAGE_VARIANCE,
             PET_DAMAGE_VARIANCE);
 
-    // Ataque normal: nunca permitimos daño 0 o negativo.
+    // Ataque normal: nunca permitimos dano 0 o negativo.
     if (variado < 1)
         variado = 1;
 
@@ -1126,7 +1233,7 @@ bool PetBattleMgr::IsAttackerAtTypeDisadvantage(
 // ================================================================
 
 void PetBattleMgr::ShowTeamMenu(
-    Player* player)  
+    Player* player)
 {
     if (!UseGossipUI())
     {
@@ -1189,9 +1296,71 @@ void PetBattleMgr::ShowTeamMenu(
             "",
             0);
 
+    SendAddonMsg(player, "GOSSIPFLAG");
+
     player->PlayerTalkClass->SendGossipMenu(
         GOSSIP_TEXT_GENERICO,
         player->GetGUID());
+}
+
+// ================================================================
+// cortecia de aurora
+// Lancer un combat contre la cible actuelle (partage entre la
+// commande .dp sans argument et le bouton "Duel de Mascotte")
+// ================================================================
+
+void PetBattleMgr::StartBattleAgainstTarget(
+    Player* player)
+{
+    if (!player)
+        return;
+
+    if (!sConfigMgr->GetOption<bool>("PetBattle.Enable", true))
+    {
+        ChatHandler(player->GetSession()).PSendSysMessage(
+            "{}",
+            GetText(player, PETTXT_SYSTEM_DISABLED).c_str());
+
+        return;
+    }
+
+    Unit* target =
+        player->GetSelectedUnit();
+
+    // Joueur cible -> defi PvP.
+    if (target &&
+        target->GetTypeId() == TYPEID_PLAYER &&
+        target != player)
+    {
+        StartDuelRequest(
+            player,
+            target->ToPlayer());
+
+        return;
+    }
+
+    // Creature du monde ciblee : si c'est un compagnon capturable,
+    // le combat sauvage demarre directement.
+    if (target &&
+        target->GetTypeId() == TYPEID_UNIT &&
+        target->ToCreature())
+    {
+        if (TryStartWildBattle(
+            player,
+            target->ToCreature()))
+        {
+            return;
+        }
+
+        ChatHandler(player->GetSession()).PSendSysMessage(
+            "{}",
+            GetText(player, PETTXT_WILD_NOT_CAPTUREABLE).c_str());
+
+        return;
+    }
+
+    // Aucune cible valide -> menu de gestion d'equipe.
+    ShowTeamMenu(player);
 }
 
 void PetBattleMgr::HandleTeamGossipAction(
@@ -1209,7 +1378,8 @@ void PetBattleMgr::HandleTeamGossipAction(
             ClearPlayerTeam(guidLow);
 
             ChatHandler(player->GetSession()).PSendSysMessage(
-                GetText(player, PETTXT_CLEAR_TEAM));
+                "{}",
+                GetText(player, PETTXT_CLEAR_TEAM).c_str());
 
             ShowTeamMenu(player);
             return;
@@ -1220,7 +1390,8 @@ void PetBattleMgr::HandleTeamGossipAction(
             player->PlayerTalkClass->SendCloseGossip();
 
             ChatHandler(player->GetSession()).PSendSysMessage(
-                GetText(player, PETTXT_SAVE_TEAM));
+                "{}",
+                GetText(player, PETTXT_SAVE_TEAM).c_str());
 
             return;
         }
@@ -1360,6 +1531,8 @@ void PetBattleMgr::HandleTeamGossipAction(
                     "",
                     0);
 
+            SendAddonMsg(player, "GOSSIPFLAG");
+
             player->PlayerTalkClass->SendGossipMenu(
                 GOSSIP_TEXT_GENERICO,
                 player->GetGUID());
@@ -1408,7 +1581,8 @@ void PetBattleMgr::HandleTeamGossipAction(
                 {
                     ChatHandler(player->GetSession())
                         .PSendSysMessage(
-                            GetText(player, PETTXT_DUPLICATE_SLOT));
+                            "{}",
+                            GetText(player, PETTXT_DUPLICATE_SLOT).c_str());
 
                     ShowTeamMenu(player);
                     return;
@@ -1424,7 +1598,7 @@ void PetBattleMgr::HandleTeamGossipAction(
                 .PSendSysMessage(
                     "{}",
                     GetTextFmt(player, PETTXT_PET_ASSIGNED,
-                        { std::to_string(slot + 1) }));
+                        { std::to_string(slot + 1) }).c_str());
 
             ShowTeamMenu(player);
             return;
@@ -1578,15 +1752,15 @@ void PetBattleMgr::SendBattleInit(
         // ====================================================
 
         std::to_string(
-            mine.daño1
+            mine.dano1
         ) + ":" +
 
         std::to_string(
-            mine.daño2
+            mine.dano2
         ) + ":" +
 
         std::to_string(
-            mine.daño3
+            mine.dano3
         ) + ":" +
 
 
@@ -1611,7 +1785,7 @@ void PetBattleMgr::SendBattleInit(
 }
 
 // Manda, para cada uno de los 3 slots del equipo guardado, un
-// TEAMUPDATE con nombre/tipo/daños (el icono lo resuelve el addon
+// TEAMUPDATE con nombre/tipo/danos (el icono lo resuelve el addon
 // a partir del spellID con GetSpellInfo), o un TEAMCLEAR si el slot
 // esta vacio o apunta a una mascota sin ficha de combate.
 void PetBattleMgr::SendFullTeamToClient(
@@ -1662,9 +1836,9 @@ void PetBattleMgr::SendFullTeamToClient(
             GetCreatureName(player, team[i].creatureEntry) + ":" +
             std::string() + ":" +   // icono
             GetTipoName(player, stats.tipo) + ":" +
-            std::to_string(stats.daño1) + ":" +
-            std::to_string(stats.daño2) + ":" +
-            std::to_string(stats.daño3) + ":" +
+            std::to_string(stats.dano1) + ":" +
+            std::to_string(stats.dano2) + ":" +
+            std::to_string(stats.dano3) + ":" +
             std::to_string(team[i].creatureEntry));
     }
 }
@@ -1784,10 +1958,41 @@ void PetBattleMgr::HandleAddonMessage(
         return;
     }
 
+    // Bouton "Passer" de l'addon : termine le tour immediatement,
+    // sans attaque ni degats.
+    if (cmd == "PASS")
+    {
+        if (ActivePetBattle* battle =
+            GetBattleByPlayer(player->GetGUID()))
+        {
+            HandlePass(player, *battle);
+        }
+        return;
+    }
+
+    // Bouton "Changer de mascotte" de l'addon.
+    if (cmd == "SWITCHPET")
+    {
+        if (ActivePetBattle* battle =
+            GetBattleByPlayer(player->GetGUID()))
+        {
+            HandleSwitchPet(player, *battle);
+        }
+        return;
+    }
+
+    // Bouton "Duel de Mascotte" de l'addon (equivalent a .dp sans
+    // argument : regarde la cible actuelle du joueur).
+    if (cmd == "STARTBATTLE")
+    {
+        StartBattleAgainstTarget(player);
+        return;
+    }
+
     // El addon pide el equipo completo tal como esta guardado en el
     // servidor. Se envia al abrir la ventana de Companeros para que
     // los 3 slots siempre reflejen el equipo actual (nombre, tipo y
-    // daños), en vez de arrancar vacios o con datos viejos.
+    // danos), en vez de arrancar vacios o con datos viejos.
     if (cmd == "TEAMGET")
     {
         SendFullTeamToClient(player);
@@ -1886,9 +2091,9 @@ void PetBattleMgr::HandleAddonMessage(
             std::string() + ":" +   // nombre
             std::string() + ":" +   // icono
             GetTipoName(player, existing.tipo) + ":" +
-            std::to_string(existing.daño1) + ":" +
-            std::to_string(existing.daño2) + ":" +
-            std::to_string(existing.daño3) + ":" +
+            std::to_string(existing.dano1) + ":" +
+            std::to_string(existing.dano2) + ":" +
+            std::to_string(existing.dano3) + ":" +
             std::to_string(entry));
 
 
@@ -1990,7 +2195,7 @@ void PetBattleMgr::RemovePetFromTeam(
         return;
     }
 
-    uint32 entry = team[slotIndex].creatureEntry;
+
 
     SavePlayerTeamSlot(
         guidLow,
@@ -2005,7 +2210,7 @@ void PetBattleMgr::RemovePetFromTeam(
     ChatHandler(player->GetSession()).PSendSysMessage(
         "{}",
         GetTextFmt(player, PETTXT_REMOVE_CHAT,
-            { GetCreatureName(player, team[slotIndex].creatureEntry) }));
+            { GetCreatureName(player, team[slotIndex].creatureEntry) }).c_str());
 }
 
 void PetBattleMgr::ForgetPet(
@@ -2085,7 +2290,7 @@ void PetBattleMgr::ForgetPet(
         guidLow,
         stats.spellID);
 
-    if (remaining && remaining->Fetch()[0].Get<uint64>() == 0 &&
+    if (remaining && remaining->Fetch()[0].Get<int64>() == 0 &&
         player->HasSpell(stats.spellID))
     {
         player->removeSpell(
@@ -2107,7 +2312,7 @@ void PetBattleMgr::ForgetPet(
     ChatHandler(player->GetSession()).PSendSysMessage(
         "{}",
         GetTextFmt(player, PETTXT_FORGET_CHAT,
-            { GetCreatureName(player, team[slotIndex].creatureEntry) }));
+            { GetCreatureName(player, team[slotIndex].creatureEntry) }).c_str());
 }
 
 void PetBattleMgr::ConvertPetToItem(
@@ -2156,7 +2361,7 @@ void PetBattleMgr::ConvertPetToItem(
         ChatHandler(player->GetSession()).PSendSysMessage(
             "{}",
             GetTextFmt(player, PETTXT_DETACH_NO_SOURCE,
-                { GetCreatureName(player, team[slotIndex].creatureEntry) }));
+                { GetCreatureName(player, team[slotIndex].creatureEntry) }).c_str());
         return;
     }
 
@@ -2184,7 +2389,8 @@ void PetBattleMgr::ConvertPetToItem(
             player,
             "PET_ACTION_ERR:DETACH:" + GetText(player, PETTXT_DETACH_BAGS));
         ChatHandler(player->GetSession()).PSendSysMessage(
-            GetText(player, PETTXT_DETACH_BAG_CHAT));
+            "{}",
+            GetText(player, PETTXT_DETACH_BAG_CHAT).c_str());
         return;
     }
 
@@ -2230,7 +2436,7 @@ void PetBattleMgr::ConvertPetToItem(
         guidLow,
         stats.spellID);
 
-    if (remaining && remaining->Fetch()[0].Get<uint64>() == 0 &&
+    if (remaining && remaining->Fetch()[0].Get<int64>() == 0 &&
         player->HasSpell(stats.spellID))
     {
         player->removeSpell(
@@ -2253,7 +2459,7 @@ void PetBattleMgr::ConvertPetToItem(
     ChatHandler(player->GetSession()).PSendSysMessage(
         "{}",
         GetTextFmt(player, PETTXT_DETACH_CHAT,
-            { GetCreatureName(player, team[slotIndex].creatureEntry), std::to_string(itemEntry) }));
+            { GetCreatureName(player, team[slotIndex].creatureEntry), std::to_string(itemEntry) }).c_str());
 }
 
 bool PetBattleMgr::StartDuelRequest(
@@ -2279,7 +2485,7 @@ bool PetBattleMgr::StartDuelRequest(
     if (challenger->GetDistance(target) > maxChallengeDistance)
     {
         ChatHandler(challenger->GetSession()).PSendSysMessage(
-            "{}", GetText(challenger, PETTXT_TOO_FAR));
+            "{}", GetText(challenger, PETTXT_TOO_FAR).c_str());
 
         return false;
     }
@@ -2288,7 +2494,8 @@ bool PetBattleMgr::StartDuelRequest(
         challenger->GetGUID()))
     {
         ChatHandler(challenger->GetSession()).PSendSysMessage(
-            GetText(challenger, PETTXT_DUEL_ALREADY));
+            "{}",
+            GetText(challenger, PETTXT_DUEL_ALREADY).c_str());
 
         return false;
     }
@@ -2297,7 +2504,8 @@ bool PetBattleMgr::StartDuelRequest(
         target->GetGUID()))
     {
         ChatHandler(challenger->GetSession()).PSendSysMessage(
-            GetText(challenger, PETTXT_TARGET_ALREADY));
+            "{}",
+            GetText(challenger, PETTXT_TARGET_ALREADY).c_str());
 
         return false;
     }
@@ -2312,7 +2520,8 @@ bool PetBattleMgr::StartDuelRequest(
     if (!teamChallenger[0].creatureEntry)
     {
         ChatHandler(challenger->GetSession()).PSendSysMessage(
-            GetText(challenger, PETTXT_CHALLENGER_NO_SLOT));
+            "{}",
+            GetText(challenger, PETTXT_CHALLENGER_NO_SLOT).c_str());
 
         return false;
     }
@@ -2330,7 +2539,7 @@ bool PetBattleMgr::StartDuelRequest(
         ChatHandler(challenger->GetSession()).PSendSysMessage(
             "{}",
             GetTextFmt(challenger, PETTXT_TARGET_NO_SLOT,
-                { target->GetName() }));
+                { target->GetName() }).c_str());
 
         return false;
     }
@@ -2341,7 +2550,7 @@ bool PetBattleMgr::StartDuelRequest(
     ChatHandler(challenger->GetSession()).PSendSysMessage(
         "{}",
         GetTextFmt(challenger, PETTXT_CHALLENGE_SENT,
-            { target->GetName() }));
+            { target->GetName() }).c_str());
 
     ShowDuelChallengeMenu(
         target,
@@ -2350,7 +2559,7 @@ bool PetBattleMgr::StartDuelRequest(
     ChatHandler(target->GetSession()).PSendSysMessage(
         "{}",
         GetTextFmt(target, PETTXT_CHALLENGE_RECEIVED,
-            { challenger->GetName() }));
+            { challenger->GetName() }).c_str());
 
     return true;
 }
@@ -2377,7 +2586,8 @@ void PetBattleMgr::HandleDuelAccept(
     if (it == _pendingChallenges.end())
     {
         ChatHandler(target->GetSession()).PSendSysMessage(
-            GetText(target, PETTXT_NO_PENDING));
+            "{}",
+            GetText(target, PETTXT_NO_PENDING).c_str());
 
         return;
     }
@@ -2394,7 +2604,8 @@ void PetBattleMgr::HandleDuelAccept(
     if (!challenger)
     {
         ChatHandler(target->GetSession()).PSendSysMessage(
-            GetText(target, PETTXT_CHALLENGER_GONE));
+            "{}",
+            GetText(target, PETTXT_CHALLENGER_GONE).c_str());
 
         return;
     }
@@ -2405,7 +2616,8 @@ void PetBattleMgr::HandleDuelAccept(
             target->GetGUID()))
     {
         ChatHandler(target->GetSession()).PSendSysMessage(
-            GetText(target, PETTXT_ALREADY_DUEL));
+            "{}",
+            GetText(target, PETTXT_ALREADY_DUEL).c_str());
 
         return;
     }
@@ -2434,10 +2646,12 @@ void PetBattleMgr::HandleDuelAccept(
         !teamB[0].creatureEntry)
     {
         ChatHandler(target->GetSession()).PSendSysMessage(
-            GetText(target, PETTXT_DUEL_CANCEL));
+            "{}",
+            GetText(target, PETTXT_DUEL_CANCEL).c_str());
 
         ChatHandler(challenger->GetSession()).PSendSysMessage(
-            GetText(challenger, PETTXT_DUEL_CANCEL));
+            "{}",
+            GetText(challenger, PETTXT_DUEL_CANCEL).c_str());
 
         return;
     }
@@ -2558,7 +2772,8 @@ void PetBattleMgr::HandleDuelAccept(
                     if (a)
                     {
                         ChatHandler(a->GetSession()).PSendSysMessage(
-                            GetText(a, PETTXT_DUEL_REJECTED));
+                            "{}",
+                            GetText(a, PETTXT_DUEL_REJECTED).c_str());
 
                         SendAddonMsg(
                             a,
@@ -2573,7 +2788,7 @@ void PetBattleMgr::HandleDuelAccept(
                             GetTextFmt(
                                 b,
                                 PETTXT_CHALLENGE_REJECTED,
-                                { a ? a->GetName() : std::string("the other player") }));
+                                { a ? a->GetName() : std::string("the other player") }).c_str());
 
                         SendAddonMsg(
                             b,
@@ -2589,7 +2804,8 @@ void PetBattleMgr::HandleDuelAccept(
                     if (b)
                     {
                         ChatHandler(b->GetSession()).PSendSysMessage(
-                            GetText(b, PETTXT_DUEL_REJECTED));
+                            "{}",
+                            GetText(b, PETTXT_DUEL_REJECTED).c_str());
 
                         SendAddonMsg(
                             b,
@@ -2604,7 +2820,7 @@ void PetBattleMgr::HandleDuelAccept(
                             GetTextFmt(
                                 a,
                                 PETTXT_CHALLENGE_REJECTED,
-                                { b ? b->GetName() : std::string("the other player") }));
+                                { b ? b->GetName() : std::string("the other player") }).c_str());
 
                         SendAddonMsg(
                             a,
@@ -2620,7 +2836,8 @@ void PetBattleMgr::HandleDuelAccept(
                     if (a)
                     {
                         ChatHandler(a->GetSession()).PSendSysMessage(
-                            GetText(a, PETTXT_DUEL_REJECTED));
+                            "{}",
+                            GetText(a, PETTXT_DUEL_REJECTED).c_str());
 
                         SendAddonMsg(
                             a,
@@ -2631,7 +2848,8 @@ void PetBattleMgr::HandleDuelAccept(
                     if (b)
                     {
                         ChatHandler(b->GetSession()).PSendSysMessage(
-                            GetText(b, PETTXT_DUEL_REJECTED));
+                            "{}",
+                            GetText(b, PETTXT_DUEL_REJECTED).c_str());
 
                         SendAddonMsg(
                             b,
@@ -2662,7 +2880,8 @@ void PetBattleMgr::HandleDuelDecline(
     if (it == _pendingChallenges.end())
     {
         ChatHandler(target->GetSession()).PSendSysMessage(
-            GetText(target, PETTXT_NO_PENDING));
+            "{}",
+            GetText(target, PETTXT_NO_PENDING).c_str());
 
         return;
     }
@@ -2679,83 +2898,141 @@ void PetBattleMgr::HandleDuelDecline(
         ChatHandler(challenger->GetSession()).PSendSysMessage(
             "{}",
             GetTextFmt(challenger, PETTXT_CHALLENGE_REJECTED,
-                { target->GetName() }));
+                { target->GetName() }).c_str());
     }
 
     ChatHandler(target->GetSession()).PSendSysMessage(
-        GetText(target, PETTXT_DUEL_REJECTED));
+        "{}",
+        GetText(target, PETTXT_DUEL_REJECTED).c_str());
 }
 
 // ================================================================
 // Abandono de batalla
 // ================================================================
 
-void PetBattleMgr::HandleForfeit(Player* player)
-{
-    if (!player)
-        return;
-
-    ObjectGuid playerGuid = player->GetGUID();
-
-    ActivePetBattle* battle =
-        GetBattleByPlayer(playerGuid);
-
-    if (!battle || battle->finished)
-        return;
-
-    // ------------------------------------------------------------
-    // PvP
-    // ------------------------------------------------------------
-    // El jugador que cierra la ventana es el perdedor.
-    // EndBattle() se encarga del ganador, perdedor, experiencia y
-    // limpieza de la batalla.
-    if (!battle->isWildBattle)
+    void PetBattleMgr::HandleForfeit(Player* player)
     {
-        ObjectGuid winnerGuid =
-            battle->playerA == playerGuid
-            ? battle->playerB
-            : battle->playerA;
+        if (!player)
+            return;
 
-        EndBattle(
+        ObjectGuid playerGuid = player->GetGUID();
+
+        ActivePetBattle* battle =
+            GetBattleByPlayer(playerGuid);
+
+        if (!battle || battle->finished)
+            return;
+
+        // ------------------------------------------------------------
+        // PvP
+        // ------------------------------------------------------------
+        // El jugador que cierra la ventana es el perdedor.
+        // EndBattle() se encarga del ganador, perdedor, experiencia y
+        // limpieza de la batalla.
+        if (!battle->isWildBattle)
+        {
+            ObjectGuid winnerGuid =
+                battle->playerA == playerGuid
+                ? battle->playerB
+                : battle->playerA;
+
+            // La rendición también cuenta como derrota.
+            AddPlayerSurrender(playerGuid);
+
+            // Al ganador solo le sumamos la victoria.
+            AddPlayerVictory(winnerGuid);
+
+            // Importante:
+            // No usamos AddPlayerLose(playerGuid) aquí porque
+            // AddPlayerSurrender ya incrementa lose.
+
+            // Finalizamos visualmente el combate sin duplicar score.
+            battle->finished = true;
+            battle->winner = winnerGuid;
+
+            Player* winner =
+                ObjectAccessor::FindPlayer(winnerGuid);
+
+            Player* loser =
+                ObjectAccessor::FindPlayer(playerGuid);
+
+            if (winner)
+            {
+                ChatHandler(winner->GetSession()).PSendSysMessage(
+                    "{}",
+                    GetText(winner, PETTXT_VICTORY).c_str());
+
+                SendAddonMsg(
+                    winner,
+                    "BATTLEEND:" +
+                    GetText(winner, PETTXT_VICTORY));
+
+                winner->HandleEmoteCommand(
+                    EMOTE_ONESHOT_CHEER);
+
+                GrantBattleExperience(
+                    winner,
+                    false);
+            }
+
+            if (loser)
+            {
+                ChatHandler(loser->GetSession()).PSendSysMessage(
+                    "{}",
+                    GetText(loser, PETTXT_DEFEAT).c_str());
+
+                SendAddonMsg(
+                    loser,
+                    "BATTLEEND:" +
+                    GetText(loser, PETTXT_DEFEAT));
+
+                loser->HandleEmoteCommand(
+                    EMOTE_ONESHOT_CRY);
+            }
+
+            DespawnActivePet(*battle, true);
+            DespawnActivePet(*battle, false);
+
+            _activeBattles.erase(
+                battle->playerA);
+
+            return;
+        }
+
+        // ------------------------------------------------------------
+        // Criatura salvaje
+        // ------------------------------------------------------------
+        // Aqui no usamos EndBattle(), porque esa funcion puede otorgar
+        // XP y recompensa de captura al ganador. Al abandonar, el
+        // jugador simplemente pierde el combate.
+        AddPlayerSurrender(playerGuid);
+        battle->finished = true;
+        battle->winner.Clear();
+
+        SendAddonMsg(
+            player,
+            "BATTLEEND:" + GetText(player, PETTXT_FORFEIT_ADDON));
+
+        ChatHandler(player->GetSession()).PSendSysMessage(
+            "{}",
+            GetText(player, PETTXT_FORFEIT_CHAT).c_str());
+
+        player->HandleEmoteCommand(
+            EMOTE_ONESHOT_CRY);
+
+        // Desaparecer ambas copias de combate.
+        DespawnActivePet(
             *battle,
-            winnerGuid,
-            playerGuid);
+            true);
 
-        return;
+        DespawnActivePet(
+            *battle,
+            false);
+
+        // playerA es siempre la clave de las batallas salvajes.
+        _activeBattles.erase(
+            battle->playerA);
     }
-
-    // ------------------------------------------------------------
-    // Criatura salvaje
-    // ------------------------------------------------------------
-    // Aqui no usamos EndBattle(), porque esa funcion puede otorgar
-    // XP y recompensa de captura al ganador. Al abandonar, el
-    // jugador simplemente pierde el combate.
-    battle->finished = true;
-    battle->winner.Clear();
-
-    SendAddonMsg(
-        player,
-        "BATTLEEND:" + GetText(player, PETTXT_FORFEIT_ADDON));
-
-    ChatHandler(player->GetSession()).PSendSysMessage(
-        GetText(player, PETTXT_FORFEIT_CHAT));
-
-    player->HandleEmoteCommand(
-        EMOTE_ONESHOT_CRY);
-
-    // Desaparecer ambas copias de combate.
-    DespawnActivePet(
-        *battle,
-        true);
-
-    DespawnActivePet(
-        *battle,
-        false);
-
-    // playerA es siempre la clave de las batallas salvajes.
-    _activeBattles.erase(
-        battle->playerA);
-}
 
 // ================================================================
 // Modificar el equipo de mascotas durante un combate
@@ -2810,6 +3087,7 @@ void PetBattleMgr::HandleTeamModifiedInBattle(
     // ------------------------------------------------------------
     // Criatura salvaje
     // ------------------------------------------------------------
+    AddPlayerLose(player->GetGUID());
     battle.finished = true;
     battle.winner.Clear();
 
@@ -2818,7 +3096,8 @@ void PetBattleMgr::HandleTeamModifiedInBattle(
         "BATTLEEND:" + GetText(player, PETTXT_TEAM_MODIFIED_WILD_ADDON));
 
     ChatHandler(player->GetSession()).PSendSysMessage(
-        GetText(player, PETTXT_TEAM_MODIFIED_WILD_CHAT));
+        "{}",
+        GetText(player, PETTXT_TEAM_MODIFIED_WILD_CHAT).c_str());
 
     player->HandleEmoteCommand(
         EMOTE_ONESHOT_CRY);
@@ -2859,7 +3138,7 @@ void PetBattleMgr::ScheduleTurnTimeout(
     }
 
     uint32 timeoutSeconds =
-        sConfigMgr->GetOption<uint32>(
+        sConfigMgr->GetOption<int32>(
             "PetBattle.TurnTimeoutSeconds",
             PET_TURN_TIMEOUT_SECONDS_DEFAULT);
 
@@ -2949,7 +3228,8 @@ void PetBattleMgr::HandleTurnTimeout(
                 "BATTLEEND:" + GetText(slowPlayer, PETTXT_TIMEOUT_WILD_ADDON));
 
             ChatHandler(slowPlayer->GetSession()).PSendSysMessage(
-                GetText(slowPlayer, PETTXT_TIMEOUT_WILD_CHAT));
+                "{}",
+                GetText(slowPlayer, PETTXT_TIMEOUT_WILD_CHAT).c_str());
 
             slowPlayer->HandleEmoteCommand(
                 EMOTE_ONESHOT_CRY);
@@ -3021,7 +3301,7 @@ void PetBattleMgr::ShowDiceMenu(
     ActivePetBattle& /*battle*/)
 {
     if (!UseGossipUI())
-        return; // la tirada ya se maneja 100% via addon (COINCLICK)
+        return; // le lancer est deja gere a 100% via l'addon (COINCLICK)
 
     player->PlayerTalkClass->ClearMenus();
 
@@ -3035,6 +3315,8 @@ void PetBattleMgr::ShowDiceMenu(
             1,
             "",
             0);
+
+    SendAddonMsg(player, "GOSSIPFLAG");
 
     player->PlayerTalkClass->SendGossipMenu(
         GOSSIP_TEXT_GENERICO,
@@ -3079,7 +3361,7 @@ void PetBattleMgr::HandleDiceRoll(
     ChatHandler(player->GetSession()).PSendSysMessage(
         "{}",
         GetTextFmt(player, PETTXT_ROLL_RESULT,
-            { std::to_string(roll) }));
+            { std::to_string(roll) }).c_str());
 
     player->PlayerTalkClass->SendCloseGossip();
 
@@ -3169,6 +3451,7 @@ void PetBattleMgr::HandleDiceRoll(
 // ================================================================
 //
 // Formato: COOLDOWNS:<cd1>:<cd2>:<cd3>
+
 //
 // Se manda desde ShowAttackMenu para que el addon siempre reciba
 // el estado de cooldown actualizado justo antes (o junto con) el
@@ -3187,7 +3470,7 @@ void PetBattleMgr::SendCooldownsToClient(
 
     SendAddonMsg(
         player,
-        "COOLDOWNS:" +
+        "ATKCD:" +
         std::to_string(pet.cooldown1) + ":" +
         std::to_string(pet.cooldown2) + ":" +
         std::to_string(pet.cooldown3));
@@ -3223,7 +3506,7 @@ void PetBattleMgr::ShowAttackMenu(
 
     // El estado de cooldown se manda siempre, se use o no gossip:
     // el addon lo necesita para su propia UI en cualquiera de los
-    // dos modos.
+    // dos modos.			 
     SendCooldownsToClient(player, myPet);
 
     if (!UseGossipUI())
@@ -3254,7 +3537,7 @@ void PetBattleMgr::ShowAttackMenu(
 
     std::string attack1Text =
         GetTextFmt(player, PETTXT_ATTACK_BUTTON,
-            { "1", std::to_string(myPet.daño1) });
+            { "1", std::to_string(myPet.dano1) });
 
     if (myPet.cooldown1 > 0)
     {
@@ -3281,7 +3564,7 @@ void PetBattleMgr::ShowAttackMenu(
 
     std::string attack2Text =
         GetTextFmt(player, PETTXT_ATTACK_BUTTON,
-            { "2", std::to_string(myPet.daño2) });
+            { "2", std::to_string(myPet.dano2) });
 
     if (myPet.cooldown2 > 0)
     {
@@ -3308,7 +3591,7 @@ void PetBattleMgr::ShowAttackMenu(
 
     std::string attack3Text =
         GetTextFmt(player, PETTXT_ATTACK_BUTTON,
-            { "3", std::to_string(myPet.daño3) });
+            { "3", std::to_string(myPet.dano3) });
 
     if (myPet.cooldown3 > 0)
     {
@@ -3335,6 +3618,8 @@ void PetBattleMgr::ShowAttackMenu(
     // ============================================================
     // Mostrar menú
     // ============================================================
+
+    SendAddonMsg(player, "GOSSIPFLAG");
 
     player->PlayerTalkClass->SendGossipMenu(
         GOSSIP_TEXT_GENERICO,
@@ -3402,7 +3687,7 @@ void PetBattleMgr::HandleAttack(
         ChatHandler(player->GetSession()).PSendSysMessage(
             "{}",
             GetTextFmt(player, PETTXT_COOLDOWN,
-                { std::to_string(attacker.GetCooldown(attackIndex)) }));
+                { std::to_string(attacker.GetCooldown(attackIndex)) }).c_str());
 
         ShowAttackMenu(
             player,
@@ -3413,15 +3698,15 @@ void PetBattleMgr::HandleAttack(
     switch (attackIndex)
     {
     case 1:
-        danoBase = attacker.daño1;
+        danoBase = attacker.dano1;
         break;
 
     case 2:
-        danoBase = attacker.daño2;
+        danoBase = attacker.dano2;
         break;
 
     case 3:
-        danoBase = attacker.daño3;
+        danoBase = attacker.dano3;
         break;
 
     default:
@@ -3441,24 +3726,28 @@ void PetBattleMgr::HandleAttack(
     // ============================================================
 
     uint32 healBelowPercent =
-        sConfigMgr->GetOption<uint32>(
-            "PetBattle.HealBelowPercent",
-            25);
+        static_cast<uint32>(
+            sConfigMgr->GetOption<int32>(
+                "PetBattle.HealBelowPercent",
+                25));
 
     uint32 healChance =
-        sConfigMgr->GetOption<uint32>(
-            "PetBattle.HealChance",
-            50);
+        static_cast<uint32>(
+            sConfigMgr->GetOption<int32>(
+                "PetBattle.HealChance",
+                50));
 
     uint32 healMin =
-        sConfigMgr->GetOption<uint32>(
-            "PetBattle.HealMin",
-            10);
+        static_cast<uint32>(
+            sConfigMgr->GetOption<int32>(
+                "PetBattle.HealMin",
+                10));
 
     uint32 healMax =
-        sConfigMgr->GetOption<uint32>(
-            "PetBattle.HealMax",
-            15);
+        static_cast<uint32>(
+            sConfigMgr->GetOption<int32>(
+                "PetBattle.HealMax",
+                15));
 
     // Evitar configuraciones invalidas.
     if (healMax < healMin)
@@ -3520,6 +3809,253 @@ void PetBattleMgr::HandleAttack(
         autoHeal);
 }
 
+// cortecia de aurora
+// ================================================================
+// Le joueur passe son tour (bouton "Passer" de l'addon)
+// ================================================================
+// Meme logique de transition de tour que ResolveAttackAndAdvance,
+// mais sans mouvement, sans animation et sans degats/soin. On
+// reutilise directement StartPetAttack pour la riposte de la
+// creature sauvage afin de garder un seul chemin de code teste
+// pour l'attaque adverse en combat sauvage.
+// ================================================================
+
+void PetBattleMgr::HandlePass(
+    Player* player,
+    ActivePetBattle& battle)
+{
+    if (!player ||
+        player->GetGUID() != battle.turnPlayer ||
+        battle.finished)
+    {
+        if (player)
+            player->PlayerTalkClass->SendCloseGossip();
+
+        return;
+    }
+
+    player->PlayerTalkClass->SendCloseGossip();
+
+    // Le joueur a agi a temps (il choisit de passer) : on invalide
+    // tout timeout de tour en attente, comme pour une attaque.
+    ++battle.turnTimeoutToken;
+
+    bool passerIsA =
+        player->GetGUID() == battle.playerA;
+
+    AdvanceTurnAfterAction(
+        battle,
+        passerIsA);
+}
+
+// ================================================================
+// Le joueur change de mascotte active (bouton "Changer de mascotte")
+// ================================================================
+// On cherche la prochaine mascotte vivante de son equipe (en bouclant
+// sur les 3 emplacements, en sautant celle deja active), sans jamais
+// consommer le tour si aucune autre mascotte n'est disponible -- meme
+// logique de refus que le cooldown d'une attaque dans HandleAttack.
+
+void PetBattleMgr::HandleSwitchPet(
+    Player* player,
+    ActivePetBattle& battle)
+{
+    if (!player ||
+        player->GetGUID() != battle.turnPlayer ||
+        battle.finished)
+    {
+        if (player)
+            player->PlayerTalkClass->SendCloseGossip();
+
+        return;
+    }
+
+    bool switcherIsA =
+        player->GetGUID() == battle.playerA;
+
+    std::array<PetBattleStats, 3>& team =
+        switcherIsA
+        ? battle.teamA
+        : battle.teamB;
+
+    uint8 currentIndex =
+        switcherIsA
+        ? battle.activeIndexA
+        : battle.activeIndexB;
+
+    uint8 targetIndex = 3; // 3 = aucune trouvee
+
+    for (uint8 offset = 1; offset <= 2; ++offset)
+    {
+        uint8 candidate =
+            static_cast<uint8>((currentIndex + offset) % 3);
+
+        if (team[candidate].mascotaID != 0 &&
+            team[candidate].vidaActual > 0)
+        {
+            targetIndex = candidate;
+            break;
+        }
+    }
+
+    if (targetIndex == 3)
+    {
+        ChatHandler(player->GetSession()).PSendSysMessage(
+            "{}",
+            GetText(player, PETTXT_SWITCH_NONE_AVAILABLE).c_str());
+
+        ShowAttackMenu(
+            player,
+            battle);
+
+        return;
+    }
+
+    player->PlayerTalkClass->SendCloseGossip();
+
+    ++battle.turnTimeoutToken;
+
+    // ------------------------------------------------------------
+    // Faire disparaitre la mascotte actuelle et invoquer la nouvelle.
+    // ------------------------------------------------------------
+
+    DespawnActivePet(
+        battle,
+        switcherIsA);
+
+    if (switcherIsA)
+    {
+        battle.activeIndexA = targetIndex;
+    }
+    else
+    {
+        battle.activeIndexB = targetIndex;
+    }
+
+    SummonActivePet(
+        player,
+        battle,
+        switcherIsA);
+
+    // ------------------------------------------------------------
+    // Rafraichir l'affichage des DEUX joueurs (nom/type/vie de la
+    // nouvelle mascotte active). SendBattleInit() ne fait rien si
+    // le joueur vise (combat sauvage cote B) est introuvable.
+    // ------------------------------------------------------------
+
+    Player* a =
+        ObjectAccessor::FindPlayer(battle.playerA);
+
+    Player* b =
+        ObjectAccessor::FindPlayer(battle.playerB);
+
+    SendBattleInit(a, battle, true);
+    SendBattleInit(b, battle, false);
+
+    AdvanceTurnAfterAction(
+        battle,
+        switcherIsA);
+}
+
+// ================================================================
+// Transition de tour partagee (HandlePass / HandleSwitchPet)
+// ================================================================
+// Aucun degat/soin a resoudre ici : en combat sauvage on enchaine
+// directement sur l'attaque de la creature (meme chemin teste que
+// la fin normale d'un tour) ; en PvP on redonne simplement la main
+// a l'adversaire.
+
+void PetBattleMgr::AdvanceTurnAfterAction(
+    ActivePetBattle& battle,
+    bool actorIsA)
+{
+    if (battle.isWildBattle)
+    {
+        battle.teamB[battle.activeIndexB].TickCooldowns();
+
+        PetBattleStats const& wildAttacker =
+            battle.teamB[battle.activeIndexB];
+
+        uint8 wildAttackIndex =
+            SelectAvailableAttack(wildAttacker);
+
+        int32 wildDanoBase = 0;
+
+        switch (wildAttackIndex)
+        {
+        case 1:
+            wildDanoBase = wildAttacker.dano1;
+            break;
+
+        case 2:
+            wildDanoBase = wildAttacker.dano2;
+            break;
+
+        case 3:
+            wildDanoBase = wildAttacker.dano3;
+            break;
+
+        default:
+            return;
+        }
+
+        StartPetAttack(
+            battle,
+            false,
+            wildDanoBase,
+            wildAttackIndex,
+            nullptr);
+
+        return;
+    }
+
+    // ============================================================
+    // COMBAT PvP : on redonne simplement la main a l'adversaire.
+    // ============================================================
+
+    PetBattleStats& nextPet =
+        actorIsA
+        ? battle.teamB[battle.activeIndexB]
+        : battle.teamA[battle.activeIndexA];
+
+    nextPet.TickCooldowns();
+
+    battle.turnPlayer =
+        actorIsA
+        ? battle.playerB
+        : battle.playerA;
+
+    if (Player* nextPlayer =
+        ObjectAccessor::FindPlayer(battle.turnPlayer))
+    {
+        // Avertit le joueur qui recoit le tour.
+        SendAddonMsg(
+            nextPlayer,
+            "TURN:mine");
+
+        // Avertit celui qui vient d'agir.
+        Player* otherPlayer =
+            ObjectAccessor::FindPlayer(
+                actorIsA
+                ? battle.playerA
+                : battle.playerB);
+
+        if (otherPlayer)
+        {
+            SendAddonMsg(
+                otherPlayer,
+                "TURN:enemy");
+        }
+
+        ShowAttackMenu(
+            nextPlayer,
+            battle);
+    }
+
+    ScheduleTurnTimeout(
+        battle);
+}
+
 // ================================================================
 // Secuencia completa de un ataque
 // ================================================================
@@ -3548,11 +4084,11 @@ void PetBattleMgr::StartPetAttack(
     if (!attackerCreature || !defenderCreature)
         return;
 
-    // ------------------------------------------------------------
-    // Distancia maxima de ataque: 10 yardas.
-    // ------------------------------------------------------------
-    float currentDistance =
-        attackerCreature->GetDistance(defenderCreature);
+
+
+
+
+
 
 
     Position startPosition = attackerIsA ? battle.spawnPosA : battle.spawnPosB;
@@ -3598,9 +4134,9 @@ void PetBattleMgr::StartPetAttack(
 
     attackerCreature->GetMotionMaster()->MovePoint(
         100,
-        attackPosition,
-        FORCED_MOVEMENT_RUN,
-        speed);
+        attackPosition);
+
+
 
     // ------------------------------------------------------------
     // 1) Esperar a que termine el avance.
@@ -3712,9 +4248,9 @@ void PetBattleMgr::StartPetAttack(
                     // ------------------------------------------------
                     currentAttacker->GetMotionMaster()->MovePoint(
                         101,
-                        startPosition,
-                        FORCED_MOVEMENT_RUN,
-                        returnSpeed);
+                        startPosition);
+
+
 
                     currentAttacker->m_Events.AddEventAtOffset(
                         [this,
@@ -3815,13 +4351,13 @@ void PetBattleMgr::StartPetAttack(
                                             switch (wildAttackIndex)
                                             {
                                             case 1:
-                                                wildDanoBase = wildAttacker.daño1;
+                                                wildDanoBase = wildAttacker.dano1;
                                                 break;
                                             case 2:
-                                                wildDanoBase = wildAttacker.daño2;
+                                                wildDanoBase = wildAttacker.dano2;
                                                 break;
                                             case 3:
-                                                wildDanoBase = wildAttacker.daño3;
+                                                wildDanoBase = wildAttacker.dano3;
                                                 break;
                                             default:
                                                 return;
@@ -3934,7 +4470,7 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
     bool missed = false;
     bool superEfectivo = false;
 
-    int32 daño =
+    int32 dano =
         ResolveHitDamage(
             attacker,
             defender,
@@ -3943,10 +4479,10 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
             superEfectivo);
 
     // Un valor negativo representa recuperacion de vida para la propia
-    // mascota (la atacante), no daño a la mascota rival.
-    bool const curacionPropia = daño < 0;
+    // mascota (la atacante), no dano a la mascota rival.
+    bool const curacionPropia = dano < 0;
 
-    // La mascota realmente afectada por este golpe: la rival si es daño,
+    // La mascota realmente afectada por este golpe: la rival si es dano,
     // o la propia si es curacion.
     PetBattleStats& afectada =
         curacionPropia
@@ -3963,7 +4499,7 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
         {
             int32 curado =
                 static_cast<int32>(attacker.vidaActual) -
-                daño; // daño es negativo, por lo que esto suma vida
+                dano; // dano es negativo, por lo que esto suma vida
 
             int32 vidaMax =
                 static_cast<int32>(attacker.vidaMax);
@@ -3977,7 +4513,7 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
         else
         {
             uint32 danoAplicado =
-                static_cast<uint32>(daño);
+                static_cast<uint32>(dano);
 
             if (danoAplicado >= defender.vidaActual)
                 defender.vidaActual = 0;
@@ -3994,9 +4530,9 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
         ObjectAccessor::FindPlayer(
             battle.playerB);
 
-    // "afectadaEsA" indica si la mascota que cambio de vida (por daño o
+    // "afectadaEsA" indica si la mascota que cambio de vida (por dano o
     // por curacion propia) pertenece al equipo A. La mascota rival
-    // (daño) es !attackerIsA; la propia (curacion) es attackerIsA.
+    // (dano) es !attackerIsA; la propia (curacion) es attackerIsA.
     bool const afectadaEsA =
         curacionPropia
         ? attackerIsA
@@ -4051,20 +4587,20 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
             if (curacionPropia)
             {
                 visualSpellId =
-                    sConfigMgr->GetOption<uint32>(
+                    static_cast<uint32>(sConfigMgr->GetOption<int32>(
                         "PetBattle.HealVisualSpellId",
-                        0);
+                        0));
             }
             else
             {
                 visualSpellId =
-                    daño < static_cast<int32>(PET_DAMAGE_VISUAL_THRESHOLD)
-                    ? sConfigMgr->GetOption<uint32>(
+                    dano < static_cast<int32>(PET_DAMAGE_VISUAL_THRESHOLD)
+                    ? static_cast<uint32>(sConfigMgr->GetOption<int32>(
                         "PetBattle.DamageVisualSpellIdLow",
-                        0)
-                    : sConfigMgr->GetOption<uint32>(
+                        0))
+                    : static_cast<uint32>(sConfigMgr->GetOption<int32>(
                         "PetBattle.DamageVisualSpellIdHigh",
-                        0);
+                        0));
             }
         }
 
@@ -4115,92 +4651,163 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
             ? GetCreatureName(a, attacker.mascotaID)
             : GetText(a, PETTXT_WILD_PET_NAME));
 
-    if (a && b)
+    // Journal de combat dans le chat : verbeux (un message par coup),
+    // desactive par defaut suite a un retour joueur -- les degats sont
+    // deja visibles via la barre de vie et le texte flottant ci-dessous.
+    bool const chatCombatLog =
+        sConfigMgr->GetOption<bool>(
+            "PetBattle.ChatCombatLog",
+            false);
+
+    if (chatCombatLog)
     {
-        if (missed)
+        if (a && b)
         {
-            ChatHandler(a->GetSession()).PSendSysMessage(
-                "{}",
-                GetTextFmt(a, PETTXT_ATTACK_MISS,
-                    { atacanteNombre }));
+            if (missed)
+            {
+                ChatHandler(a->GetSession()).PSendSysMessage(
+                    "{}",
+                    GetTextFmt(a, PETTXT_ATTACK_MISS,
+                        { atacanteNombre }).c_str());
 
-            ChatHandler(b->GetSession()).PSendSysMessage(
-                "{}",
-                GetTextFmt(b, PETTXT_ATTACK_MISS,
-                    { atacanteNombre }));
+                ChatHandler(b->GetSession()).PSendSysMessage(
+                    "{}",
+                    GetTextFmt(b, PETTXT_ATTACK_MISS,
+                        { atacanteNombre }).c_str());
+            }
+            else if (curacionPropia)
+            {
+                std::string curado =
+                    std::to_string(-dano);
+
+                uint32 healTextId =
+                    autoHeal
+                    ? PETTXT_AUTO_HEAL
+                    : PETTXT_ATTACK_HEAL;
+
+                ChatHandler(a->GetSession()).PSendSysMessage(
+                    "{}",
+                    GetTextFmt(a, healTextId,
+                        { atacanteNombre, curado,
+                          std::to_string(afectada.vidaActual) }).c_str());
+
+                ChatHandler(b->GetSession()).PSendSysMessage(
+                    "{}",
+                    GetTextFmt(b, healTextId,
+                        { atacanteNombre, curado,
+                          std::to_string(afectada.vidaActual) }).c_str());
+            }
+            else
+            {
+                std::string bonusA =
+                    superEfectivo ? GetText(a, PETTXT_EFFECTIVE) : "";
+                std::string bonusB =
+                    superEfectivo ? GetText(b, PETTXT_EFFECTIVE) : "";
+
+                ChatHandler(a->GetSession()).PSendSysMessage(
+                    "{}",
+                    GetTextFmt(a, PETTXT_ATTACK_HIT,
+                        { atacanteNombre, std::to_string(dano), bonusA,
+                          std::to_string(afectada.vidaActual) }).c_str());
+
+                ChatHandler(b->GetSession()).PSendSysMessage(
+                    "{}",
+                    GetTextFmt(b, PETTXT_ATTACK_HIT,
+                        { atacanteNombre, std::to_string(dano), bonusB,
+                          std::to_string(afectada.vidaActual) }).c_str());
+            }
         }
-        else if (curacionPropia)
+        else if (a)
         {
-            std::string curado =
-                std::to_string(-daño);
+            std::string msg;
 
-            uint32 healTextId =
-                autoHeal
-                ? PETTXT_AUTO_HEAL
-                : PETTXT_ATTACK_HEAL;
+
+
+
+            if (missed)
+            {
+                msg = GetTextFmt(a, PETTXT_ATTACK_MISS, { atacanteNombre });
+            }
+            else if (curacionPropia)
+            {
+                uint32 healTextId =
+                    autoHeal
+                    ? PETTXT_AUTO_HEAL
+                    : PETTXT_ATTACK_HEAL;
+
+                msg = GetTextFmt(a, healTextId,
+                    { atacanteNombre, std::to_string(-dano),
+                      std::to_string(afectada.vidaActual) });
+            }
+            else
+            {
+                msg = GetTextFmt(a, PETTXT_ATTACK_HIT,
+                    { atacanteNombre, std::to_string(dano),
+                      superEfectivo ? GetText(a, PETTXT_EFFECTIVE) : "",
+                      std::to_string(afectada.vidaActual) });
+            }
 
             ChatHandler(a->GetSession()).PSendSysMessage(
                 "{}",
-                GetTextFmt(a, healTextId,
-                    { atacanteNombre, curado,
-                      std::to_string(afectada.vidaActual) }));
-
-            ChatHandler(b->GetSession()).PSendSysMessage(
-                "{}",
-                GetTextFmt(b, healTextId,
-                    { atacanteNombre, curado,
-                      std::to_string(afectada.vidaActual) }));
-        }
-        else
-        {
-            std::string bonusA =
-                superEfectivo ? GetText(a, PETTXT_EFFECTIVE) : "";
-            std::string bonusB =
-                superEfectivo ? GetText(b, PETTXT_EFFECTIVE) : "";
-
-            ChatHandler(a->GetSession()).PSendSysMessage(
-                "{}",
-                GetTextFmt(a, PETTXT_ATTACK_HIT,
-                    { atacanteNombre, std::to_string(daño), bonusA,
-                      std::to_string(afectada.vidaActual) }));
-
-            ChatHandler(b->GetSession()).PSendSysMessage(
-                "{}",
-                GetTextFmt(b, PETTXT_ATTACK_HIT,
-                    { atacanteNombre, std::to_string(daño), bonusB,
-                      std::to_string(afectada.vidaActual) }));
+                msg.c_str());
         }
     }
-    else if (a)
+
+
+
+
+    // ============================================================
+    // Texte de degats/soin flottant cote client (au-dessus de la
+    // barre de vie concernee), independant du journal de chat.
+    // ============================================================
+
+
+
+
+
+
+
+
+    std::string dmgType =
+        missed
+        ? "miss"
+        : curacionPropia
+        ? "heal"
+
+
+        : (superEfectivo ? "crit" : "hit");
+
+
+
+    std::string dmgAmount =
+        missed
+        ? "0"
+        : (curacionPropia
+            ? std::to_string(-dano)
+            : std::to_string(dano));
+
+    if (a)
     {
-        std::string msg;
+        SendAddonMsg(
+            a,
+            "DMGTEXT:" +
+            std::string(afectadaEsA ? "mine" : "enemy") +
+            ":" +
+            dmgAmount +
+            ":" +
+            dmgType);
+    }
 
-        if (missed)
-        {
-            msg = GetTextFmt(a, PETTXT_ATTACK_MISS, { atacanteNombre });
-        }
-        else if (curacionPropia)
-        {
-            uint32 healTextId =
-                autoHeal
-                ? PETTXT_AUTO_HEAL
-                : PETTXT_ATTACK_HEAL;
-
-            msg = GetTextFmt(a, healTextId,
-                { atacanteNombre, std::to_string(-daño),
-                  std::to_string(afectada.vidaActual) });
-        }
-        else
-        {
-            msg = GetTextFmt(a, PETTXT_ATTACK_HIT,
-                { atacanteNombre, std::to_string(daño),
-                  superEfectivo ? GetText(a, PETTXT_EFFECTIVE) : "",
-                  std::to_string(afectada.vidaActual) });
-        }
-
-        ChatHandler(a->GetSession()).PSendSysMessage(
-            "{}",
-            msg);
+    if (b)
+    {
+        SendAddonMsg(
+            b,
+            "DMGTEXT:" +
+            std::string(afectadaEsA ? "enemy" : "mine") +
+            ":" +
+            dmgAmount +
+            ":" +
+            dmgType);
     }
 
     ShowFloatingDamageNumber(
@@ -4209,7 +4816,7 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
         : defenderCreature,
         attackerPlayer,
         a,
-        daño,
+        dano,
         missed,
         superEfectivo);
 
@@ -4299,7 +4906,8 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
         else if (a)
         {
             ChatHandler(a->GetSession()).PSendSysMessage(
-                GetText(a, PETTXT_PET_DEFEATED));
+                "{}",
+                GetText(a, PETTXT_PET_DEFEATED).c_str());
         }
 
         // La mascota nueva tiene otro nombre/tipo/vida maxima: se
@@ -4318,26 +4926,51 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
 void PetBattleMgr::EndBattle(
     ActivePetBattle& battle,
     ObjectGuid winnerGuid,
-    ObjectGuid loserGuid)
+    ObjectGuid loserGuid,
+    bool wasSurrender)
 {
     battle.finished = true;
     battle.winner = winnerGuid;
 
+    // ============================================
+    // SCORE
+    // ============================================
+
+    if (!battle.isWildBattle)
+    {
+        AddPlayerVictory(winnerGuid);
+
+        if (wasSurrender)
+            AddPlayerSurrender(loserGuid);
+        else
+            AddPlayerLose(loserGuid);
+    }
+    else
+    {
+        if (winnerGuid == battle.playerA)
+            AddPlayerVictory(winnerGuid);
+
+        if (loserGuid == battle.playerA)
+        {
+            if (wasSurrender)
+                AddPlayerSurrender(loserGuid);
+            else
+                AddPlayerLose(loserGuid);
+        }
+    }
     bool winnerIsA =
         winnerGuid == battle.playerA;
-
     Player* winner =
         ObjectAccessor::FindPlayer(
             winnerGuid);
-
     Player* loser =
         ObjectAccessor::FindPlayer(
             loserGuid);
-
     if (winner)
     {
         ChatHandler(winner->GetSession()).PSendSysMessage(
-            GetText(winner, PETTXT_VICTORY));
+            "{}",
+            GetText(winner, PETTXT_VICTORY).c_str());
 
         SendAddonMsg(
             winner,
@@ -4362,7 +4995,8 @@ void PetBattleMgr::EndBattle(
     if (loser)
     {
         ChatHandler(loser->GetSession()).PSendSysMessage(
-            GetText(loser, PETTXT_DEFEAT));
+            "{}",
+            GetText(loser, PETTXT_DEFEAT).c_str());
 
         SendAddonMsg(
             loser,
@@ -4427,14 +5061,14 @@ void PetBattleMgr::SendPetChatFeedbackLocalized(
     {
         ChatHandler(p1->GetSession()).PSendSysMessage(
             "{}",
-            GetTextFmt(p1, textId, args));
+            GetTextFmt(p1, textId, args).c_str());
     }
 
     if (p2)
     {
         ChatHandler(p2->GetSession()).PSendSysMessage(
             "{}",
-            GetTextFmt(p2, textId, args));
+            GetTextFmt(p2, textId, args).c_str());
     }
 }
 
@@ -4447,14 +5081,14 @@ void PetBattleMgr::SendPetChatFeedback(
     {
         ChatHandler(p1->GetSession()).PSendSysMessage(
             "{}",
-            msg);
+            msg.c_str());
     }
 
     if (p2)
     {
         ChatHandler(p2->GetSession()).PSendSysMessage(
             "{}",
-            msg);
+            msg.c_str());
     }
 }
 
@@ -4485,12 +5119,14 @@ void PetBattleMgr::GrantBattleExperience(
 
     uint32 porcentaje =
         vsWild
-        ? sConfigMgr->GetOption<uint32>(
-            "PetBattle.XpPercentVsWild",
-            PET_XP_PERCENT_VS_WILD)
-        : sConfigMgr->GetOption<uint32>(
-            "PetBattle.XpPercentVsPvp",
-            PET_XP_PERCENT_VS_PVP);
+        ? static_cast<uint32>(
+            sConfigMgr->GetOption<int32>(
+                "PetBattle.XpPercentVsWild",
+                static_cast<int32>(PET_XP_PERCENT_VS_WILD)))
+        : static_cast<uint32>(
+            sConfigMgr->GetOption<int32>(
+                "PetBattle.XpPercentVsPvp",
+                static_cast<int32>(PET_XP_PERCENT_VS_PVP)));
 
     uint32 xpGanada =
         static_cast<uint32>(
@@ -4509,7 +5145,7 @@ void PetBattleMgr::GrantBattleExperience(
     ChatHandler(winner->GetSession()).PSendSysMessage(
         "{}",
         GetTextFmt(winner, PETTXT_XP,
-            { std::to_string(xpGanada), std::to_string(porcentaje) }));
+            { std::to_string(xpGanada), std::to_string(porcentaje) }).c_str());
 }
 
 // ================================================================
@@ -4533,7 +5169,8 @@ void PetBattleMgr::GrantWildCaptureReward(
     if (!wildTemplate)
     {
         ChatHandler(winner->GetSession()).PSendSysMessage(
-            GetText(winner, PETTXT_CAPTURE_NO_CREATURE));
+            "{}",
+            GetText(winner, PETTXT_CAPTURE_NO_CREATURE).c_str());
 
         return;
     }
@@ -4552,18 +5189,19 @@ void PetBattleMgr::GrantWildCaptureReward(
         modelIndex < 4;
         ++modelIndex)
     {
-        CreatureModel const* model =
-            wildTemplate->GetModelByIdx(
+        uint32 displayId =
+            GetCreatureTemplateModelId(
+                wildTemplate,
                 modelIndex);
 
-        if (!model ||
-            !model->CreatureDisplayID)
+        if (!displayId)
+
         {
             continue;
         }
 
         wildDisplayIds[modelIndex] =
-            model->CreatureDisplayID;
+            displayId;
 
         hasWildModel = true;
     }
@@ -4571,7 +5209,8 @@ void PetBattleMgr::GrantWildCaptureReward(
     if (!hasWildModel)
     {
         ChatHandler(winner->GetSession()).PSendSysMessage(
-            GetText(winner, PETTXT_CAPTURE_NO_MODEL));
+            "{}",
+            GetText(winner, PETTXT_CAPTURE_NO_MODEL).c_str());
 
         return;
     }
@@ -4588,7 +5227,8 @@ void PetBattleMgr::GrantWildCaptureReward(
     if (!result)
     {
         ChatHandler(winner->GetSession()).PSendSysMessage(
-            GetText(winner, PETTXT_CAPTURE_NO_ITEMS));
+            "{}",
+            GetText(winner, PETTXT_CAPTURE_NO_ITEMS).c_str());
 
         return;
     }
@@ -4672,18 +5312,19 @@ void PetBattleMgr::GrantWildCaptureReward(
                 !modelMatches;
                 ++itemModelIndex)
             {
-                CreatureModel const* itemModel =
-                    itemCreatureTemplate->GetModelByIdx(
+                uint32 itemDisplayId =
+                    GetCreatureTemplateModelId(
+                        itemCreatureTemplate,
                         itemModelIndex);
 
-                if (!itemModel ||
-                    !itemModel->CreatureDisplayID)
+                if (!itemDisplayId)
+
                 {
                     continue;
                 }
 
-                uint32 itemDisplayId =
-                    itemModel->CreatureDisplayID;
+
+
 
                 for (uint8 wildModelIndex = 0;
                     wildModelIndex < 4;
@@ -4722,7 +5363,8 @@ void PetBattleMgr::GrantWildCaptureReward(
     if (!matchedItemEntry)
     {
         ChatHandler(winner->GetSession()).PSendSysMessage(
-            GetText(winner, PETTXT_CAPTURE_NO_MATCH));
+            "{}",
+            GetText(winner, PETTXT_CAPTURE_NO_MATCH).c_str());
 
         return;
     }
@@ -4734,22 +5376,49 @@ void PetBattleMgr::GrantWildCaptureReward(
     if (!itemTemplate)
         return;
 
-    if (!winner->StoreNewItemInBestSlots(
-        matchedItemEntry,
-        1))
+    // AzerothCore 3.3.5a: use the standard inventory API instead of
+    // StoreNewItemInBestSlots(), which is not available on all AC branches.
+    ItemPosCountVec dest;
+    InventoryResult inventoryResult =
+        winner->CanStoreNewItem(
+            NULL_BAG,
+            NULL_SLOT,
+            dest,
+            matchedItemEntry,
+            1);
+
+    if (inventoryResult != EQUIP_ERR_OK)
     {
         ChatHandler(winner->GetSession()).PSendSysMessage(
             "{}",
             GetTextFmt(winner, PETTXT_CAPTURE_NO_SPACE,
-                { itemTemplate->Name1 }));
+                { itemTemplate->Name1 }).c_str());
 
         return;
     }
 
+    Item* capturedItem =
+        winner->StoreNewItem(
+            dest,
+            matchedItemEntry,
+            true);
+
+    if (!capturedItem)
+    {
+        ChatHandler(winner->GetSession()).PSendSysMessage(
+            "{}",
+            GetTextFmt(winner, PETTXT_CAPTURE_NO_SPACE,
+                { itemTemplate->Name1 }).c_str());
+
+        return;
+    }
+
+    winner->SendNewItem(capturedItem, 1, true, false);
+
     ChatHandler(winner->GetSession()).PSendSysMessage(
         "{}",
         GetTextFmt(winner, PETTXT_CAPTURE_SUCCESS,
-            { itemTemplate->Name1 }));
+            { itemTemplate->Name1 }).c_str());
 }
 
 // ================================================================
@@ -4789,7 +5458,7 @@ void PetBattleMgr::ShowFloatingDamageNumber(
     {
         ChatHandler(attacker->GetSession()).PSendSysMessage(
             "{}",
-            linea);
+            linea.c_str());
     }
 
     if (defenderOwner &&
@@ -4797,7 +5466,7 @@ void PetBattleMgr::ShowFloatingDamageNumber(
     {
         ChatHandler(defenderOwner->GetSession()).PSendSysMessage(
             "{}",
-            linea);
+            linea.c_str());
     }
 }
 
@@ -4940,6 +5609,7 @@ Creature* PetBattleMgr::SummonActivePet(
         battle.spawnPosA = summon->GetPosition();
     else
         battle.spawnPosB = summon->GetPosition();
+
     // ============================================================
     // Hacer que ambos se miren
     // ============================================================
@@ -4978,7 +5648,7 @@ Creature* PetBattleMgr::SummonActivePet(
     // ============================================================
 
     uint32 visualSpellId =
-        sConfigMgr->GetOption<uint32>(
+        sConfigMgr->GetOption<int32>(
             "PetBattle.SummonVisualSpellId",
             0);
 
