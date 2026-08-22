@@ -1,0 +1,104 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+
+  <!-- ========================================================== -->
+  <!-- Petit bouton flottant et deplacable "Duel de Mascotte" :   -->
+  <!-- envoie STARTBATTLE au serveur au clic (equivalent a taper  -->
+  <!-- .dp sur la cible actuelle : joueur cible = defi, creature  -->
+  <!-- capturable ciblee = combat sauvage, sinon menu d'equipe).  -->
+  <!-- Position sauvegardee/restauree comme PetBattleUI_CoinFrame -->
+  <!-- (voir PetBattleUI_SavePosition/PetBattleUI_RestorePosition -->
+  <!-- dans Core.lua, appele au PLAYER_LOGIN).                    -->
+  <!-- ========================================================== -->
+
+  <Button
+    name="PetBattleUI_DuelButtonFrame"
+    toplevel="true"
+    frameStrata="MEDIUM"
+    parent="UIParent"
+    movable="true"
+    enableMouse="true"
+    clampedToScreen="true"
+  >
+
+    <Size x="44" y="44"/>
+
+    <Anchors>
+      <Anchor point="CENTER" x="400" y="100"/>
+    </Anchors>
+
+    <Layers>
+
+      <Layer level="ARTWORK">
+
+        <Texture
+          name="PetBattleUI_DuelButtonIcon"
+          file="Interface\AddOns\PetBattleUI\Textures\inv_pet_battlepettraining"
+          setAllPoints="true"
+        >
+          <TextureCoords left="0.07" right="0.93" top="0.07" bottom="0.93"/>
+        </Texture>
+
+      </Layer>
+
+      <Layer level="OVERLAY">
+
+        <Texture
+          name="PetBattleUI_DuelButtonBorder"
+          file="Interface\AddOns\PetBattleUI\Textures\CadreIcon.tga"
+        >
+          <Size x="48" y="48"/>
+          <Anchors>
+            <Anchor point="CENTER" x="0" y="0"/>
+          </Anchors>
+        </Texture>
+
+      </Layer>
+
+    </Layers>
+
+    <HighlightTexture
+      file="Interface\AddOns\PetBattleUI\Textures\CadreIconHighlight.tga"
+      alphaMode="ADD"
+    >
+      <Size x="48" y="48"/>
+      <Anchors>
+        <Anchor point="CENTER" x="0" y="0"/>
+      </Anchors>
+    </HighlightTexture>
+
+    <Scripts>
+
+      <OnClick>
+        PetBattleUI_DuelButton_OnClick()
+      </OnClick>
+
+      <OnMouseDown>
+        if button == "LeftButton" then
+          this:StartMoving()
+        end
+      </OnMouseDown>
+
+      <OnMouseUp>
+        this:StopMovingOrSizing()
+        PetBattleUI_SavePosition(this)
+      </OnMouseUp>
+
+      <OnHide>
+        this:StopMovingOrSizing()
+      </OnHide>
+
+      <OnEnter>
+        GameTooltip:SetOwner(this, "ANCHOR_TOP")
+        GameTooltip:SetText(PetBattleUI_Locale.DUEL_BUTTON)
+        GameTooltip:Show()
+      </OnEnter>
+
+      <OnLeave>
+        GameTooltip:Hide()
+      </OnLeave>
+
+    </Scripts>
+
+  </Button>
+
+</Ui>

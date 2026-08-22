@@ -1,0 +1,109 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+
+  <Frame
+      name="PetBattleUI_DuelFrame"
+      toplevel="true"
+      frameStrata="DIALOG"
+      hidden="true"
+      parent="UIParent"
+      enableMouse="true">
+
+    <Size x="320" y="130"/>
+
+    <Anchors>
+      <!-- 150 píxeles más arriba -->
+      <Anchor point="CENTER" x="0" y="280"/>
+    </Anchors>
+
+    <Backdrop
+        bgFile="Interface\DialogFrame\UI-DialogBox-Background"
+        edgeFile="Interface\DialogFrame\UI-DialogBox-Border"
+        tile="true">
+
+      <BackgroundInsets
+          left="11"
+          right="12"
+          top="12"
+          bottom="11"/>
+
+      <TileSize val="32"/>
+      <EdgeSize val="32"/>
+
+    </Backdrop>
+
+    <Layers>
+
+      <Layer level="ARTWORK">
+
+        <FontString
+            name="PetBattleUI_DuelFrameText"
+            inherits="GameFontNormalLarge"
+            justifyH="CENTER">
+
+          <Size x="260" y="0"/>
+
+          <Anchors>
+            <Anchor
+                point="TOP"
+                x="0"
+                y="-30"/>
+          </Anchors>
+
+        </FontString>
+
+      </Layer>
+
+    </Layers>
+
+    <Frames>
+
+      <Button
+          name="PetBattleUI_DuelAcceptButton"
+          inherits="UIPanelButtonTemplate"
+          text="Accepter">
+
+        <Size x="120" y="24"/>
+
+        <Anchors>
+          <Anchor
+              point="BOTTOMLEFT"
+              x="25"
+              y="20"/>
+        </Anchors>
+
+        <Scripts>
+          <OnClick>
+            PetBattleUI_Duel_OnAccept()
+          </OnClick>
+        </Scripts>
+
+      </Button>
+
+
+      <Button
+          name="PetBattleUI_DuelDeclineButton"
+          inherits="UIPanelButtonTemplate"
+          text="Annuler">
+
+        <Size x="120" y="24"/>
+
+        <Anchors>
+          <Anchor
+              point="BOTTOMRIGHT"
+              x="-25"
+              y="20"/>
+        </Anchors>
+
+        <Scripts>
+          <OnClick>
+            PetBattleUI_Duel_OnDecline()
+          </OnClick>
+        </Scripts>
+
+      </Button>
+
+    </Frames>
+
+  </Frame>
+
+</Ui>

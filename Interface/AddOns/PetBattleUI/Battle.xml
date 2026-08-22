@@ -1,0 +1,771 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+
+  <!-- ========================================================== -->
+  <!-- UI CUSTOM (texture .tga, plus de .blp, voir Battle.lua). -->
+  <!-- La banniere du haut et la barre du bas sont maintenant     -->
+  <!-- 2 pieces separees, calees chacune sur son propre bord de   -->
+  <!-- l'ecran (haut / bas), au lieu d'un seul bloc flottant au   -->
+  <!-- milieu avec un ecart fixe. Le conteneur racine occupe tout -->
+  <!-- l'ecran (setAllPoints sur UIParent) mais reste invisible,  -->
+  <!-- seules les 2 pieces enfants portent du contenu visuel.     -->
+  <!-- ========================================================== -->
+
+  <Frame
+    name="PetBattleUI_BattleFrame"
+    toplevel="true"
+    frameStrata="MEDIUM"
+    hidden="true"
+    parent="UIParent"
+    setAllPoints="true"
+    enableMouse="false"
+  >
+
+    <Frames>
+
+
+      <!-- ====================================================== -->
+      <!-- PIECE DU HAUT : calee sur le bord superieur de l'ecran -->
+      <!-- ====================================================== -->
+
+      <Frame name="PetBattleUI_BattleTopBar" enableMouse="false">
+
+        <Size x="1249" y="104"/>
+
+        <Anchors>
+          <Anchor point="TOP" x="0" y="0"/>
+        </Anchors>
+
+        <Layers>
+
+          <Layer level="BACKGROUND">
+
+            <Texture
+              name="PetBattleUI_BattleTopArt"
+              file="Interface\AddOns\PetBattleUI\Textures\BattlePetTop.tga"
+              setAllPoints="true"
+            >
+              <TextureCoords left="0" right="1" top="0" bottom="0.679688"/>
+            </Texture>
+
+          </Layer>
+
+          <Layer level="ARTWORK">
+
+            <FontString
+              name="PetBattleUI_BattleVSText"
+              inherits="GameFontNormalHuge"
+              justifyH="CENTER"
+              text="VS"
+            >
+
+              <Anchors>
+                <Anchor point="TOP" x="-5" y="-6"/>
+              </Anchors>
+
+            </FontString>
+
+
+            <!-- Ennemi (droite) -->
+
+            <FontString
+              name="PetBattleUI_EnemyName"
+              inherits="GameFontNormal"
+              justifyH="RIGHT"
+            >
+
+              <Anchors>
+                <Anchor point="TOPRIGHT" x="-49" y="-11"/>
+              </Anchors>
+
+            </FontString>
+
+            <FontString
+              name="PetBattleUI_EnemyType"
+              inherits="GameFontHighlightSmall"
+              justifyH="RIGHT"
+            >
+
+              <Anchors>
+                <Anchor point="TOPRIGHT" x="-49" y="-53"/>
+              </Anchors>
+
+            </FontString>
+
+
+            <!-- Ma mascotte (gauche) -->
+
+            <FontString
+              name="PetBattleUI_MyName"
+              inherits="GameFontNormal"
+              justifyH="LEFT"
+            >
+
+              <Anchors>
+                <Anchor point="TOPLEFT" x="49" y="-11"/>
+              </Anchors>
+
+            </FontString>
+
+            <FontString
+              name="PetBattleUI_MyType"
+              inherits="GameFontHighlightSmall"
+              justifyH="LEFT"
+            >
+
+              <Anchors>
+                <Anchor point="TOPLEFT" x="49" y="-53"/>
+              </Anchors>
+
+            </FontString>
+
+
+            <!-- Texte de degats/soin flottant, gere entierement  -->
+            <!-- en Lua (PetBattleUI_Battle_ShowDamageText). Cache -->
+            <!-- par defaut, ne s'affiche qu'au moment d'un coup.  -->
+
+            <FontString
+              name="PetBattleUI_EnemyDamageText"
+              inherits="GameFontNormalHuge"
+              justifyH="CENTER"
+              hidden="true"
+              text=""
+            >
+
+              <Anchors>
+                <Anchor point="BOTTOM" relativeTo="PetBattleUI_EnemyHealthBar" relativePoint="TOP" x="0" y="-41"/>
+              </Anchors>
+
+            </FontString>
+
+            <FontString
+              name="PetBattleUI_MyDamageText"
+              inherits="GameFontNormalHuge"
+              justifyH="CENTER"
+              hidden="true"
+              text=""
+            >
+
+              <Anchors>
+                <Anchor point="BOTTOM" relativeTo="PetBattleUI_MyHealthBar" relativePoint="TOP" x="0" y="-41"/>
+              </Anchors>
+
+            </FontString>
+
+          </Layer>
+
+        </Layers>
+
+        <Frames>
+
+          <StatusBar
+            name="PetBattleUI_EnemyHealthBar"
+            minValue="0"
+            maxValue="100"
+            defaultValue="100"
+          >
+
+            <Size x="350" y="17"/>
+
+            <Anchors>
+              <Anchor point="TOPRIGHT" x="-49" y="-30"/>
+            </Anchors>
+
+            <BarTexture file="Interface\TargetingFrame\UI-StatusBar"/>
+            <BarColor r="0.85" g="0.2" b="0.2" a="0"/>
+
+            <Layers>
+              <Layer level="BACKGROUND">
+                <Texture setAllPoints="true">
+                  <Color r="0.1" g="0.1" b="0.1" a="0.6"/>
+                </Texture>
+              </Layer>
+              <Layer level="ARTWORK">
+
+                <!-- Remplissage gere entierement a la main en   -->
+                <!-- Lua (colle au bord droit, se retrecit vers  -->
+                <!-- la droite), independant du rendu natif du   -->
+                <!-- StatusBar qui est rendu invisible ci-dessus -->
+                <!-- (BarColor alpha=0) pour eviter tout conflit -->
+                <!-- avec ce remplissage personnalise.           -->
+
+                <Texture
+                  name="PetBattleUI_EnemyHealthBarFill"
+                  file="Interface\TargetingFrame\UI-StatusBar"
+                >
+                  <Color r="0.85" g="0.2" b="0.2" a="1"/>
+                  <Anchors>
+                    <Anchor point="TOPRIGHT"/>
+                    <Anchor point="BOTTOMRIGHT"/>
+                  </Anchors>
+                </Texture>
+
+              </Layer>
+
+              <Layer level="OVERLAY">
+
+                <FontString
+                  name="PetBattleUI_EnemyHealthText"
+                  inherits="TextStatusBarText"
+                  justifyH="CENTER"
+                  text=""
+                >
+                  <Anchors>
+                    <Anchor point="CENTER" x="0" y="0"/>
+                  </Anchors>
+                </FontString>
+
+              </Layer>
+
+            </Layers>
+
+            <Scripts>
+              <OnValueChanged>
+                if PetBattleUI_EnemyHealthBar_UpdateFill then
+                  PetBattleUI_EnemyHealthBar_UpdateFill(this)
+                end
+              </OnValueChanged>
+            </Scripts>
+
+          </StatusBar>
+
+          <StatusBar
+            name="PetBattleUI_MyHealthBar"
+            minValue="0"
+            maxValue="100"
+            defaultValue="100"
+          >
+
+            <Size x="350" y="17"/>
+
+            <Anchors>
+              <Anchor point="TOPLEFT" x="49" y="-30"/>
+            </Anchors>
+
+            <BarTexture file="Interface\TargetingFrame\UI-StatusBar"/>
+            <BarColor r="0.2" g="0.6" b="0.9"/>
+
+            <Layers>
+              <Layer level="BACKGROUND">
+                <Texture setAllPoints="true">
+                  <Color r="0.1" g="0.1" b="0.1" a="0.6"/>
+                </Texture>
+              </Layer>
+
+              <Layer level="OVERLAY">
+
+                <FontString
+                  name="PetBattleUI_MyHealthText"
+                  inherits="TextStatusBarText"
+                  justifyH="CENTER"
+                  text=""
+                >
+                  <Anchors>
+                    <Anchor point="CENTER" x="0" y="0"/>
+                  </Anchors>
+                </FontString>
+
+              </Layer>
+            </Layers>
+
+          </StatusBar>
+
+        </Frames>
+
+      </Frame>
+
+
+      <!-- ====================================================== -->
+      <!-- PIECE DU BAS : calee sur le bord inferieur de l'ecran  -->
+      <!-- ====================================================== -->
+
+      <Frame name="PetBattleUI_BattleBottomBar" enableMouse="false">
+
+        <Size x="1203" y="159"/>
+
+        <Anchors>
+          <Anchor point="BOTTOM" x="240" y="-10"/>
+        </Anchors>
+
+        <Layers>
+
+          <Layer level="BACKGROUND">
+
+            <Texture
+              name="PetBattleUI_BattleBottomArt"
+              file="Interface\AddOns\PetBattleUI\Textures\BattlePetBottom.tga"
+              setAllPoints="true"
+            >
+              <TextureCoords left="0" right="0.596680" top="0" bottom="0.929688"/>
+            </Texture>
+
+          </Layer>
+
+        </Layers>
+
+        <Frames>
+
+
+          <!-- Sort 1 -->
+
+          <Button name="PetBattleUI_AttackIcon1" hidden="false" enableMouse="true">
+
+            <Size x="71" y="71"/>
+
+            <Anchors>
+              <Anchor point="CENTER" x="-474" y="-15"/>
+            </Anchors>
+
+            <Layers>
+
+              <Layer level="ARTWORK">
+
+                <Texture name="PetBattleUI_AttackIcon1Texture" setAllPoints="true">
+                  <TextureCoords left="0.07" right="0.93" top="0.07" bottom="0.93"/>
+                </Texture>
+
+              </Layer>
+
+              <Layer level="OVERLAY">
+
+                <Texture
+                  name="PetBattleUI_AttackIcon1Border"
+                  file="Interface\AddOns\PetBattleUI\Textures\CadreIcon.tga"
+                >
+                  <Size x="77" y="77"/>
+                  <Anchors>
+                    <Anchor point="CENTER" x="0" y="0"/>
+                  </Anchors>
+                </Texture>
+
+                <FontString
+                  name="PetBattleUI_AttackDamage1"
+                  inherits="GameFontHighlightLarge"
+                  justifyH="CENTER"
+                  justifyV="MIDDLE"
+                >
+                  <Size x="80" y="24"/>
+                  <Anchors>
+                    <Anchor point="BOTTOM" relativePoint="TOP" x="0" y="3"/>
+                  </Anchors>
+                </FontString>
+
+                <FontString
+                  name="PetBattleUI_AttackCD1"
+                  inherits="GameFontRedSmall"
+                  justifyH="CENTER"
+                >
+                  <Size x="100" y="16"/>
+                  <Anchors>
+                    <Anchor point="TOP" relativePoint="BOTTOM" x="0" y="-2"/>
+                  </Anchors>
+                </FontString>
+
+              </Layer>
+
+            </Layers>
+
+            <HighlightTexture
+              file="Interface\AddOns\PetBattleUI\Textures\CadreIconHighlight.tga"
+              alphaMode="ADD"
+            >
+              <Size x="77" y="77"/>
+              <Anchors>
+                <Anchor point="CENTER" x="0" y="0"/>
+              </Anchors>
+            </HighlightTexture>
+
+            <Scripts>
+              <OnClick>
+                PetBattleUI_Battle_OnAttack(1)
+              </OnClick>
+            </Scripts>
+
+          </Button>
+
+
+          <!-- Sort 2 -->
+
+          <Button name="PetBattleUI_AttackIcon2" hidden="false" enableMouse="true">
+
+            <Size x="66" y="66"/>
+
+            <Anchors>
+              <Anchor point="CENTER" x="-363" y="-13"/>
+            </Anchors>
+
+            <Layers>
+
+              <Layer level="ARTWORK">
+
+                <Texture name="PetBattleUI_AttackIcon2Texture" setAllPoints="true">
+                  <TextureCoords left="0.07" right="0.93" top="0.07" bottom="0.93"/>
+                </Texture>
+
+              </Layer>
+
+              <Layer level="OVERLAY">
+
+                <Texture
+                  name="PetBattleUI_AttackIcon2Border"
+                  file="Interface\AddOns\PetBattleUI\Textures\CadreIcon.tga"
+                >
+                  <Size x="72" y="72"/>
+                  <Anchors>
+                    <Anchor point="CENTER" x="0" y="0"/>
+                  </Anchors>
+                </Texture>
+
+                <FontString
+                  name="PetBattleUI_AttackDamage2"
+                  inherits="GameFontHighlightLarge"
+                  justifyH="CENTER"
+                  justifyV="MIDDLE"
+                >
+                  <Size x="80" y="24"/>
+                  <Anchors>
+                    <Anchor point="BOTTOM" relativePoint="TOP" x="0" y="3"/>
+                  </Anchors>
+                </FontString>
+
+                <FontString
+                  name="PetBattleUI_AttackCD2"
+                  inherits="GameFontRedSmall"
+                  justifyH="CENTER"
+                >
+                  <Size x="100" y="16"/>
+                  <Anchors>
+                    <Anchor point="TOP" relativePoint="BOTTOM" x="0" y="-2"/>
+                  </Anchors>
+                </FontString>
+
+              </Layer>
+
+            </Layers>
+
+            <HighlightTexture
+              file="Interface\AddOns\PetBattleUI\Textures\CadreIconHighlight.tga"
+              alphaMode="ADD"
+            >
+              <Size x="72" y="72"/>
+              <Anchors>
+                <Anchor point="CENTER" x="0" y="0"/>
+              </Anchors>
+            </HighlightTexture>
+
+            <Scripts>
+              <OnClick>
+                PetBattleUI_Battle_OnAttack(2)
+              </OnClick>
+            </Scripts>
+
+          </Button>
+
+
+          <!-- Sort 3 -->
+
+          <Button name="PetBattleUI_AttackIcon3" hidden="false" enableMouse="true">
+
+            <Size x="66" y="66"/>
+
+            <Anchors>
+              <Anchor point="CENTER" x="-260" y="-13"/>
+            </Anchors>
+
+            <Layers>
+
+              <Layer level="ARTWORK">
+
+                <Texture name="PetBattleUI_AttackIcon3Texture" setAllPoints="true">
+                  <TextureCoords left="0.07" right="0.93" top="0.07" bottom="0.93"/>
+                </Texture>
+
+              </Layer>
+
+              <Layer level="OVERLAY">
+
+                <Texture
+                  name="PetBattleUI_AttackIcon3Border"
+                  file="Interface\AddOns\PetBattleUI\Textures\CadreIcon.tga"
+                >
+                  <Size x="72" y="72"/>
+                  <Anchors>
+                    <Anchor point="CENTER" x="0" y="0"/>
+                  </Anchors>
+                </Texture>
+
+                <FontString
+                  name="PetBattleUI_AttackDamage3"
+                  inherits="GameFontHighlightLarge"
+                  justifyH="CENTER"
+                  justifyV="MIDDLE"
+                >
+                  <Size x="80" y="24"/>
+                  <Anchors>
+                    <Anchor point="BOTTOM" relativePoint="TOP" x="0" y="3"/>
+                  </Anchors>
+                </FontString>
+
+                <FontString
+                  name="PetBattleUI_AttackCD3"
+                  inherits="GameFontRedSmall"
+                  justifyH="CENTER"
+                >
+                  <Size x="100" y="16"/>
+                  <Anchors>
+                    <Anchor point="TOP" relativePoint="BOTTOM" x="0" y="-2"/>
+                  </Anchors>
+                </FontString>
+
+              </Layer>
+
+            </Layers>
+
+            <HighlightTexture
+              file="Interface\AddOns\PetBattleUI\Textures\CadreIconHighlight.tga"
+              alphaMode="ADD"
+            >
+              <Size x="72" y="72"/>
+              <Anchors>
+                <Anchor point="CENTER" x="0" y="0"/>
+              </Anchors>
+            </HighlightTexture>
+
+            <Scripts>
+              <OnClick>
+                PetBattleUI_Battle_OnAttack(3)
+              </OnClick>
+            </Scripts>
+
+          </Button>
+
+
+          <!-- Bouton "Passer" : termine le tour immediatement,   -->
+          <!-- sans attaque. Emplacement fourni par l'utilisateur -->
+          <!-- (encadre dans CapturePaint11.png sur le calque de  -->
+          <!-- BattlePetBottom.tga).                              -->
+
+          <Button
+            name="PetBattleUI_PassButton"
+            inherits="UIPanelButtonTemplate"
+            hidden="false"
+          >
+
+            <Size x="97" y="25"/>
+
+            <Anchors>
+              <Anchor point="TOPLEFT" x="395" y="-16"/>
+            </Anchors>
+
+            <Scripts>
+              <OnLoad>
+                this:SetText(PetBattleUI_Locale.PASS_BUTTON)
+              </OnLoad>
+              <OnClick>
+                PetBattleUI_Battle_OnPass()
+              </OnClick>
+            </Scripts>
+
+          </Button>
+
+
+          <!-- Bouton "Changer de mascotte" : 4e emplacement, a    -->
+          <!-- droite des 3 sorts. Position de depart estimee par  -->
+          <!-- extrapolation de l'ecart entre les slots 2 et 3,    -->
+          <!-- a ajuster ensuite comme les autres elements.        -->
+
+          <Button name="PetBattleUI_SwitchPetButton" hidden="false" enableMouse="true">
+
+            <Size x="66" y="66"/>
+
+            <Anchors>
+              <Anchor point="CENTER" x="-155" y="-13"/>
+            </Anchors>
+
+            <Layers>
+
+              <Layer level="ARTWORK">
+
+                <Texture
+                  name="PetBattleUI_SwitchPetButtonTexture"
+                  file="Interface\Addons\PetBattleUI\Textures\inv_pet_swappet"
+                  setAllPoints="true"
+                >
+                  <TextureCoords left="0.07" right="0.93" top="0.07" bottom="0.93"/>
+                </Texture>
+
+              </Layer>
+
+              <Layer level="OVERLAY">
+
+                <Texture
+                  name="PetBattleUI_SwitchPetButtonBorder"
+                  file="Interface\AddOns\PetBattleUI\Textures\CadreIcon.tga"
+                >
+                  <Size x="72" y="72"/>
+                  <Anchors>
+                    <Anchor point="CENTER" x="0" y="0"/>
+                  </Anchors>
+                </Texture>
+
+              </Layer>
+
+            </Layers>
+
+            <HighlightTexture
+              file="Interface\AddOns\PetBattleUI\Textures\CadreIconHighlight.tga"
+              alphaMode="ADD"
+            >
+              <Size x="72" y="72"/>
+              <Anchors>
+                <Anchor point="CENTER" x="0" y="0"/>
+              </Anchors>
+            </HighlightTexture>
+
+            <Scripts>
+              <OnClick>
+                PetBattleUI_Battle_OnSwitchPet()
+              </OnClick>
+              <OnEnter>
+                GameTooltip:SetOwner(this, "ANCHOR_TOP")
+                GameTooltip:SetText(PetBattleUI_Locale.SWITCH_PET_BUTTON)
+                GameTooltip:Show()
+              </OnEnter>
+              <OnLeave>
+                GameTooltip:Hide()
+              </OnLeave>
+            </Scripts>
+
+          </Button>
+
+
+          <!-- Bouton "Capituler" : 5e emplacement, le plus a      -->
+          <!-- droite. Meme logique de positionnement de depart    -->
+          <!-- que le bouton precedent.                            -->
+
+          <Button name="PetBattleUI_ForfeitButton" hidden="false" enableMouse="true">
+
+            <Size x="66" y="66"/>
+
+            <Anchors>
+              <Anchor point="CENTER" x="-73" y="-13"/>
+            </Anchors>
+
+            <Layers>
+
+              <Layer level="ARTWORK">
+
+                <Texture
+                  name="PetBattleUI_ForfeitButtonTexture"
+                  file="Interface\AddOns\PetBattleUI\Textures\inv_pet_exitbattle"
+                  setAllPoints="true"
+                >
+                  <TextureCoords left="0.07" right="0.93" top="0.07" bottom="0.93"/>
+                </Texture>
+
+              </Layer>
+
+              <Layer level="OVERLAY">
+
+                <Texture
+                  name="PetBattleUI_ForfeitButtonBorder"
+                  file="Interface\AddOns\PetBattleUI\Textures\CadreIcon.tga"
+                >
+                  <Size x="72" y="72"/>
+                  <Anchors>
+                    <Anchor point="CENTER" x="0" y="0"/>
+                  </Anchors>
+                </Texture>
+
+              </Layer>
+
+            </Layers>
+
+            <HighlightTexture
+              file="Interface\AddOns\PetBattleUI\Textures\CadreIconHighlight.tga"
+              alphaMode="ADD"
+            >
+              <Size x="72" y="72"/>
+              <Anchors>
+                <Anchor point="CENTER" x="0" y="0"/>
+              </Anchors>
+            </HighlightTexture>
+
+            <Scripts>
+              <OnClick>
+                PetBattleUI_Battle_OnForfeit()
+              </OnClick>
+              <OnEnter>
+                GameTooltip:SetOwner(this, "ANCHOR_TOP")
+                GameTooltip:SetText(PetBattleUI_Locale.FORFEIT_BUTTON)
+                GameTooltip:Show()
+              </OnEnter>
+              <OnLeave>
+                GameTooltip:Hide()
+              </OnLeave>
+            </Scripts>
+
+          </Button>
+
+        </Frames>
+
+      </Frame>
+
+
+      <!-- ====================================================== -->
+      <!-- NOTIFICATION "DEBUT DE COMBAT" (icone + texte, courte  -->
+      <!-- apparition au centre de l'ecran, gerer dans Battle.lua) -->
+      <!-- ====================================================== -->
+
+      <Frame
+        name="PetBattleUI_FightStartNotif"
+        hidden="true"
+        enableMouse="false"
+        frameStrata="HIGH"
+      >
+
+        <Size x="260" y="260"/>
+
+        <Anchors>
+          <Anchor point="CENTER" x="0" y="60"/>
+        </Anchors>
+
+        <Layers>
+
+          <Layer level="BACKGROUND">
+
+            <Texture
+              name="PetBattleUI_FightStartIcon"
+              file="Interface\AddOns\PetBattleUI\Textures\FightStartNotif.tga"
+            >
+              <Size x="220" y="220"/>
+              <Anchors>
+                <Anchor point="CENTER" x="0" y="0"/>
+              </Anchors>
+            </Texture>
+
+          </Layer>
+
+          <Layer level="OVERLAY">
+
+            <FontString
+              name="PetBattleUI_FightStartText"
+              inherits="GameFontNormalHuge"
+              justifyH="CENTER"
+              text=""
+            >
+              <Anchors>
+                <Anchor point="CENTER" x="0" y="0"/>
+              </Anchors>
+            </FontString>
+
+          </Layer>
+
+        </Layers>
+
+      </Frame>
+
+    </Frames>
+
+  </Frame>
+
+</Ui>

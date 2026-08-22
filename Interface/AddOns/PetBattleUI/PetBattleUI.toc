@@ -1,0 +1,19 @@
+## Interface: 30300
+## Title: |cffc79c6eUniversePetBattleUI|r
+## Notes: Graphical interface for the Pet Battle system (duel challenge, currency, health bars, team management via drag & drop).
+## Author: AzerothUniverse
+## Version: 0.1
+## SavedVariables: PetBattleUI_Settings
+
+Localization.lua
+Core.lua
+Duel.xml
+Duel.lua
+Coin.xml
+Coin.lua
+DuelButton.xml
+DuelButton.lua
+Battle.xml
+Battle.lua
+Team.xml
+Team.lua
