@@ -1019,17 +1019,19 @@ bool PetBattleMgr::TryStartWildBattle(
         static_cast<uint8>(
             urand(0, PET_TIPO_MAX - 1));
 
-    wild.dano1 =
-        static_cast<uint32>(
-            urand(10, 30));
+    auto GenerarDanoSalvaje = []() -> int32
+        {
+            if (urand(1, 100) <= PET_HEAL_CHANCE)
+                return irand(PET_HEAL_MIN, PET_HEAL_MAX);
 
-    wild.dano2 =
-        static_cast<uint32>(
-            urand(10, 30));
+            return static_cast<int32>(urand(
+                static_cast<uint32>(PET_DAMAGE_MIN),
+                static_cast<uint32>(PET_DAMAGE_MAX)));
+        };
 
-    wild.dano3 =
-        static_cast<uint32>(
-            urand(10, 30));
+    wild.dano1 = GenerarDanoSalvaje();
+    wild.dano2 = GenerarDanoSalvaje();
+    wild.dano3 = GenerarDanoSalvaje();
 
     ObjectGuid key =
         battle.playerA;
@@ -1142,7 +1144,21 @@ int32 PetBattleMgr::ResolveHitDamage(
     // Si danoBase = -15, cura exactamente 15.
     // --------------------------------------------------------------
     if (danoBase < 0)
-        return danoBase;
+    {
+        int32 variado =
+            danoBase +
+            irand(
+                -PET_DAMAGE_VARIANCE,
+                PET_DAMAGE_VARIANCE);
+
+        // Las curaciones son valores negativos.
+        // Nunca permitimos que la variacion convierta una curacion en daño (>= 0).
+        // Tampoco que cure mas de lo que el valor base permitiria con variacion maxima.
+        if (variado >= 0)
+            variado = -1;
+
+        return variado;
+    }
 
     // --------------------------------------------------------------
     // Ataque normal: calculamos miss chance y variacion de dano.
@@ -4752,40 +4768,22 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
                 msg.c_str());
         }
     }
-
-
-
-
     // ============================================================
     // Texte de degats/soin flottant cote client (au-dessus de la
     // barre de vie concernee), independant du journal de chat.
     // ============================================================
-
-
-
-
-
-
-
-
     std::string dmgType =
         missed
         ? "miss"
         : curacionPropia
         ? "heal"
-
-
         : (superEfectivo ? "crit" : "hit");
-
-
-
     std::string dmgAmount =
         missed
         ? "0"
         : (curacionPropia
             ? std::to_string(-dano)
             : std::to_string(dano));
-
     if (a)
     {
         SendAddonMsg(
@@ -4797,7 +4795,6 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
             ":" +
             dmgType);
     }
-
     if (b)
     {
         SendAddonMsg(
@@ -4809,7 +4806,6 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
             ":" +
             dmgType);
     }
-
     ShowFloatingDamageNumber(
         curacionPropia
         ? GetActiveSummonCreature(battle, attackerIsA)
@@ -4837,7 +4833,6 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
                 battle.activeIndexB >= 3 ||
                 battle.teamB[
                     battle.activeIndexB].mascotaID == 0;
-
             if (sinMascotas)
             {
                 EndBattle(
@@ -4847,7 +4842,6 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
 
                 return false;
             }
-
             if (b)
             {
                 SummonActivePet(
@@ -4876,7 +4870,6 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
                 battle.activeIndexA >= 3 ||
                 battle.teamA[
                     battle.activeIndexA].mascotaID == 0;
-
             if (sinMascotas)
             {
                 EndBattle(
@@ -4895,7 +4888,6 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
                     true);
             }
         }
-
         if (a && b)
         {
             SendPetChatFeedbackLocalized(
@@ -4915,10 +4907,8 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
         SendBattleInit(a, battle, true);
         SendBattleInit(b, battle, false);
     }
-
     return true;
 }
-
 // ================================================================
 // Finalizar batalla
 // ================================================================
