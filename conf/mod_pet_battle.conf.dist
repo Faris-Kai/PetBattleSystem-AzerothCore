@@ -2,60 +2,55 @@
 ########################################
 # mod-pet-battle
 ########################################
+#
+#	Español
 #    PetBattle.Enable
-#        Description: Enables or completely disables the pet battle system
-#                     (the /dp command) on the server.
-#        Default:     1 (enabled)
+#        Descripcion: Activa o desactiva por completo el sistema de combate
+#                      de mascotas (comando /dp) en el servidor.
+#        Default:     1 (activado)
 PetBattle.Enable = 1
 
-###################################################################
-# PetBattle.UseGossipUI
-#     Description: Si esta en 1, ademas de los mensajes del addon
-#                   el servidor abre ventanas de gossip para elegir
-#                   equipo, tirar el dado y atacar. Si esta en 0,
-#                   toda la interaccion queda 100% a cargo del addon
-#                   PetBattleUI (sin ninguna ventana de gossip).
-#     Default:      0 - Modo: Interfaz Addon
-#                   1 - Modo: gossip habilitado, compatible con versiones
-#                   anteriores
-#                   
-###################################################################
-PetBattle.UseGossipUI = 0
-
-# Displays a spell effect when summoning the pet.
-# VisualSpellId = any spell visual you want.
-PetBattle.SummonVisualSpellId = 47292
-
-# Displays the [PETDMG] messages used for debugging/addons.
-# 0 = disabled / 1 = enabled
-PetBattle.DebugDamageMessages = 0
-
-# Time limit in seconds for the responding player.
-PetBattle.TurnTimeoutSeconds = 15
-# Maximum distance allowed for combat.
+# Distancia limite para combatir
 PetBattle.ChallengeMaxDistance = 10
 
-# XP percentage awarded against wild pets.
+#		Muestra efecto spell al invocar la mascotas
+#		VisualSpellId = que quieras
+PetBattle.SummonVisualSpellId = 47292
+
+#		Tiempo limite en seg para que el jugador de respuesta 
+PetBattle.TurnTimeoutSeconds = 15
+
+# Experiencia ganada vs criaturas
 PetBattle.XpPercentVsWild = 5
-# XP percentage awarded in PvP battles.
+
+# Experiencia ganada vs criaturas Jugadores
 PetBattle.XpPercentVsPvp = 15
 
-# HP percentage at which the survival instinct is triggered.
+# Cantidad de vida para activar instinto de supervivencia
 PetBattle.HealBelowPercent = 25
-# Chance for an attack to be replaced by a heal.
+
+# Probabilidad de que el ataque cambie a una cura
 PetBattle.HealChance = 15
-# Minimum healing amount.
+
+# Cura minima
 PetBattle.HealMin = 15
-# Maximum healing amount.
+
+# Cura maxima
 PetBattle.HealMax = 45
 
-# Visual played on the pet that heals itself (its own ability
-# or auto-heal when HP is low). 0 = uses the normal attack emote.
-PetBattle.HealVisualSpellId = 24209
-# Visual played on the attacking pet when the damage is BELOW the
-# fixed threshold of 19 (see PET_DAMAGE_VISUAL_THRESHOLD in the .cpp).
-# 0 = uses the normal attack emote.
-PetBattle.DamageVisualSpellIdLow = 24209
-# Visual played on the attacking pet when the damage is GREATER THAN OR EQUAL
-# to the threshold. 0 = uses the normal attack emote.
+# Visual reproducido en la mascota que se cura a si misma (habilidad propia
+# o auto-heal por HP bajo). 0 = usa el emote de ataque normal.
+PetBattle.HealVisualSpellId = 133
+
+# Visual reproducido en la mascota atacante cuando el daño es MENOR al
+# umbral fijo de 19 (ver PET_DAMAGE_VISUAL_THRESHOLD en el .cpp).
+# 0 = usa el emote de ataque normal.
+PetBattle.DamageVisualSpellIdLow = 20614
+
+# Visual reproducido en la mascota atacante cuando el daño es MAYOR O IGUAL
+# al umbral. 0 = usa el emote de ataque normal.
 PetBattle.DamageVisualSpellIdHigh = 24209
+
+# Debug Chat Combat Log
+PetBattle.ChatCombatLog = 0
+
