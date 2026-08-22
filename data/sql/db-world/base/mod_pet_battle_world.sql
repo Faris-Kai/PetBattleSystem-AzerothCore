@@ -29,7 +29,17 @@ CREATE TABLE IF NOT EXISTS `bp_pet_detach_items` (
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
+  
+-- ========================================================
+-- TABLA: bp_bestiary -- pokedex?(?)
+-- ========================================================
 
+CREATE TABLE IF NOT EXISTS `bp_pet_bestiary` (
+    `account_id` INT UNSIGNED NOT NULL,
+    `item_entry` INT UNSIGNED NOT NULL,
+
+    PRIMARY KEY (`account_id`, `item_entry`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ========================================================
 -- TABLA: bp_pet_info
