@@ -39,6 +39,21 @@ if locale == "esES" or locale == "esMX" then
 
     PetBattleUI_Locale.MISS_TEXT =
         "Miss"
+	
+	PetBattleUI_Locale.DUEL_CHALLENGE =
+        "¡%s te ha desafiado a un duelo de mascotas!"
+		
+	PetBattleUI_Locale.DUEL_ACCEPT =
+		"Aceptar"
+	
+	PetBattleUI_Locale.DUEL_DECLINE =
+		"Cancelar"
+		
+	PetBattleUI_Locale.COIN_FIRST =
+		"¡Bien hecho! ¡Es tu turno!"
+
+	PetBattleUI_Locale.COIN_SECOND =
+		"¡Perdiste! Jugarás en el próximo turno."
 
 -- ============================================================
 -- INGLÉS
@@ -73,6 +88,20 @@ elseif locale == "enUS" or locale == "enGB" then
     PetBattleUI_Locale.MISS_TEXT =
         "Miss!"
 
+    PetBattleUI_Locale.DUEL_CHALLENGE =
+        "%s has challenged you to a pet duel!"
+	
+	PetBattleUI_Locale.DUEL_ACCEPT =
+		"Accept"
+	
+	PetBattleUI_Locale.DUEL_DECLINE =
+		"Decline"
+		
+	PetBattleUI_Locale.COIN_FIRST =
+		"Well done! It's your turn!"
+	
+	PetBattleUI_Locale.COIN_SECOND =
+		"You lost! You'll play on the next turn."
 
 -- ============================================================
 -- FRANCÉS
@@ -107,6 +136,20 @@ elseif locale == "frFR" then
     PetBattleUI_Locale.MISS_TEXT =
         "Raté !"
 
+    PetBattleUI_Locale.DUEL_CHALLENGE =
+        "%s vous a défié en duel de mascottes !"
+	
+	PetBattleUI_Locale.DUEL_ACCEPT =
+		"Accepter"
+
+	PetBattleUI_Locale.DUEL_DECLINE =
+		"Annuler"
+		
+	PetBattleUI_Locale.COIN_FIRST =
+		"Bien joué ! À vous de jouer !"
+	
+	PetBattleUI_Locale.COIN_SECOND =
+		"Perdu ! Vous jouerez au prochain tour."
 
 -- ============================================================
 -- ALEMÁN
@@ -220,5 +263,19 @@ else
 
     PetBattleUI_Locale.MISS_TEXT =
         "Miss!"
+	PetBattleUI_Locale.DUEL_CHALLENGE =
+		"%s has challenged you to a pet duel!"	
+	
+	PetBattleUI_Locale.DUEL_ACCEPT =
+		"Accept"
+	
+	PetBattleUI_Locale.DUEL_DECLINE =
+		"Decline"	
+		
+	PetBattleUI_Locale.COIN_FIRST =
+		"Well done! It's your turn!"
+	
+	PetBattleUI_Locale.COIN_SECOND =
+		"You lost! You'll play on the next turn."
 
 end

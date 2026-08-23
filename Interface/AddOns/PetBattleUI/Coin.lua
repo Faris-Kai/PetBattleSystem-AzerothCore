@@ -29,7 +29,17 @@ end
 function PetBattleUI_Coin_Reveal(order)
     PetBattleUI.coinFlipped = true
 
-    local text = (order == "primero") and "Bien joué ! À vous de jouer !" or "Perdu ! Vous jouerez au prochain tour."
+    local text
+
+    if order == "primero" then
+        text =
+            PetBattleUI_Locale.COIN_FIRST or
+            "Well done! It's your turn!"
+    else
+        text =
+            PetBattleUI_Locale.COIN_SECOND or
+            "You lost! You'll play on the next turn."
+    end
 
     PetBattleUI_CoinResultText:SetText(text)
 

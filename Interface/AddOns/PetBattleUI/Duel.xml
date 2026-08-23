@@ -58,49 +58,46 @@
     <Frames>
 
       <Button
-          name="PetBattleUI_DuelAcceptButton"
-          inherits="UIPanelButtonTemplate"
-          text="Accepter">
-
-        <Size x="120" y="24"/>
-
-        <Anchors>
-          <Anchor
-              point="BOTTOMLEFT"
-              x="25"
-              y="20"/>
-        </Anchors>
-
-        <Scripts>
-          <OnClick>
-            PetBattleUI_Duel_OnAccept()
-          </OnClick>
-        </Scripts>
-
-      </Button>
-
-
-      <Button
-          name="PetBattleUI_DuelDeclineButton"
-          inherits="UIPanelButtonTemplate"
-          text="Annuler">
-
-        <Size x="120" y="24"/>
-
-        <Anchors>
-          <Anchor
-              point="BOTTOMRIGHT"
-              x="-25"
-              y="20"/>
-        </Anchors>
-
-        <Scripts>
-          <OnClick>
-            PetBattleUI_Duel_OnDecline()
-          </OnClick>
-        </Scripts>
-
-      </Button>
+		  name="PetBattleUI_DuelAcceptButton"
+		  inherits="UIPanelButtonTemplate">
+	  
+		  <Size x="120" y="24"/>
+	  
+		  <Anchors>
+			  <Anchor
+				  point="BOTTOMLEFT"
+				  x="25"
+				  y="20"/>
+		  </Anchors>
+	  
+		  <Scripts>
+			  <OnClick>
+				  PetBattleUI_Duel_OnAccept()
+			  </OnClick>
+		  </Scripts>
+	  
+	  </Button>
+	  
+	  <Button
+		  name="PetBattleUI_DuelDeclineButton"
+		  inherits="UIPanelButtonTemplate">
+	  
+		  <Size x="120" y="24"/>
+	  
+		  <Anchors>
+			  <Anchor
+				  point="BOTTOMRIGHT"
+				  x="-25"
+				  y="20"/>
+		  </Anchors>
+	  
+		  <Scripts>
+			  <OnClick>
+				  PetBattleUI_Duel_OnDecline()
+			  </OnClick>
+		  </Scripts>
+	  
+	  </Button>
 
     </Frames>
 
