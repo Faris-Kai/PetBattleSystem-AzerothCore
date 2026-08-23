@@ -22,6 +22,7 @@
 #include <random>
 #include <cmath>
 #include <algorithm>
+#include <vector>
 #include <utility>
 
 // Heal chance
@@ -48,18 +49,13 @@ static bool const PET_USE_GOSSIP_UI_DEFAULT = false;
 // CreatureTemplate in ce fork n'a pas de GetModelByIdx()/CreatureModel :
 // juste 4 champs Modelid1-4 bruts. Petit helper pour garder la meme boucle
 // modelIndex 0..3 que le code d'origine (AzerothCore moderne).
-static uint32 GetCreatureTemplateModelId(
-    CreatureTemplate const* tmpl,
-    uint8 idx)
+static uint32 GetCreatureTemplateModelId(CreatureTemplate const* tmpl, uint8 idx)
 {
     if (!tmpl)
         return 0;
-
     CreatureModel const* model = tmpl->GetModelByIdx(idx);
-
     return model ? model->CreatureDisplayID : 0;
 }
-
 
 // Texto generico de gossip ya existente por defecto en la tabla `npc_text`
 static uint32 const GOSSIP_TEXT_GENERICO = 68;
@@ -139,8 +135,7 @@ void PetBattleMgr::EnsureLocaleTextsLoaded() const
     if (_localeTextsLoaded)
         return;
 
-    QueryResult result = WorldDatabase.Query(
-        "SELECT id, enUS, esES, frFR, deDE "
+    QueryResult result = WorldDatabase.Query("SELECT id, enUS, esES, frFR, deDE "
         "FROM bp_pet_locale");
 
     if (result)
@@ -149,13 +144,11 @@ void PetBattleMgr::EnsureLocaleTextsLoaded() const
         {
             Field* fields = result->Fetch();
             uint32 id = fields[0].Get<uint32>();
-
             LocaleTextRow row;
             row.enUS = fields[1].Get<std::string>();
             row.esES = fields[2].Get<std::string>();
             row.frFR = fields[3].Get<std::string>();
             row.deDE = fields[4].Get<std::string>();
-
             _localeTexts[id] = std::move(row);
         } while (result->NextRow());
     }
@@ -276,10 +269,7 @@ std::string PetBattleMgr::GetText(Player* player, uint32 textId) const
     }
 }
 
-std::string PetBattleMgr::GetTextFmt(
-    Player* player,
-    uint32 textId,
-    std::initializer_list<std::string> args) const
+std::string PetBattleMgr::GetTextFmt(Player* player, uint32 textId, std::initializer_list<std::string> args) const
 {
     std::string text = GetText(player, textId);
     uint32 index = 0;
@@ -315,15 +305,11 @@ std::string PetBattleMgr::GetTipoName(Player* player, uint8 tipo) const
 
 std::string PetBattleMgr::GetCreatureName(Player* player, uint32 creatureEntry) const
 {
-    CreatureTemplate const* creature =
-        sObjectMgr->GetCreatureTemplate(creatureEntry);
-
+    CreatureTemplate const* creature = sObjectMgr->GetCreatureTemplate(creatureEntry);
     if (!creature)
         return GetTextFmt(player, PETTXT_PET_FALLBACK,
             { std::to_string(creatureEntry) });
-
     std::string name = creature->Name;
-
     if (player && player->GetSession())
     {
         LocaleConstant locale =
@@ -331,17 +317,12 @@ std::string PetBattleMgr::GetCreatureName(Player* player, uint32 creatureEntry) 
 
         if (locale != LOCALE_enUS)
         {
-            if (CreatureLocale const* localeData =
-                sObjectMgr->GetCreatureLocale(creatureEntry))
+            if (CreatureLocale const* localeData = sObjectMgr->GetCreatureLocale(creatureEntry))
             {
-                ObjectMgr::GetLocaleString(
-                    localeData->Name,
-                    locale,
-                    name);
+                ObjectMgr::GetLocaleString(localeData->Name, locale, name);
             }
         }
     }
-
     return name;
 }
 
@@ -350,57 +331,42 @@ std::string PetBattleMgr::GetCreatureName(Player* player, uint32 creatureEntry) 
 // Persistencia de equipos
 // ================================================================
 
-uint8 PetBattleMgr::SelectAvailableAttack(
-    PetBattleStats const& pet) const
+uint8 PetBattleMgr::SelectAvailableAttack(PetBattleStats const& pet) const
 {
     std::array<uint8, 3> available = {};
     uint8 count = 0;
-
     if (pet.cooldown1 == 0)
         available[count++] = 1;
-
     if (pet.cooldown2 == 0)
         available[count++] = 2;
-
     if (pet.cooldown3 == 0)
         available[count++] = 3;
-
     // Por seguridad: si las tres estuvieran en cooldown,
     // utilizamos ataque 1.
     if (count == 0)
         return 1;
-
-    return available[
-        urand(
-            0,
-            count - 1)];
+    return available[urand(0, count - 1)];
 }
 
 void PetBattleMgr::LoadPlayerTeam(
     ObjectGuid::LowType guidLow,
-    std::array<PetBattleTeamSlot, 3>& outTeam)
-{
+    std::array<PetBattleTeamSlot, 3>& outTeam){
     outTeam[0] = PetBattleTeamSlot();
     outTeam[1] = PetBattleTeamSlot();
     outTeam[2] = PetBattleTeamSlot();
-
     QueryResult result = WorldDatabase.Query(
         "SELECT slot1_creature_entry, slot2_creature_entry, slot3_creature_entry "
         "FROM bp_pet_team WHERE guid = {}",
         guidLow);
-
     if (!result)
         return;
-
     Field* fields = result->Fetch();
-
     uint32 entries[3] =
     {
         fields[0].Get<uint32>(),
         fields[1].Get<uint32>(),
         fields[2].Get<uint32>()
     };
-
     for (uint8 i = 0; i < 3; ++i)
     {
         outTeam[i].creatureEntry = entries[i];
@@ -423,10 +389,7 @@ void PetBattleMgr::LoadPlayerTeam(
     }
 }
 
-void PetBattleMgr::SavePlayerTeamSlot(
-    ObjectGuid::LowType guidLow,
-    uint8 slotIndex,
-    uint32 creatureEntry)
+void PetBattleMgr::SavePlayerTeamSlot(ObjectGuid::LowType guidLow, uint8 slotIndex, uint32 creatureEntry)
 {
     WorldDatabase.Execute(
         "INSERT INTO bp_pet_team "
@@ -435,8 +398,7 @@ void PetBattleMgr::SavePlayerTeamSlot(
         "ON DUPLICATE KEY UPDATE guid = guid",
         guidLow);
 
-    char const* column =
-        "slot1_creature_entry";
+    char const* column = "slot1_creature_entry";
 
     if (slotIndex == 1)
         column = "slot2_creature_entry";
@@ -891,6 +853,450 @@ uint32 PetBattleMgr::FindPetSummonSpellForCreatureEntry(
     }
 
     return 0;
+}
+
+
+// ================================================================
+// Reto contra npc rivales
+// ================================================================
+
+bool PetBattleMgr::LoadRivalTeam(
+    uint32 npcEntry,
+    std::array<uint32, 3>& team)
+{
+    team =
+    {
+        0,
+        0,
+        0
+    };
+
+    QueryResult result =
+        WorldDatabase.Query(
+            "SELECT mascota1, mascota2, mascota3 "
+            "FROM bp_pet_rivales_team "
+            "WHERE entry = {}",
+            npcEntry);
+
+    if (!result)
+        return false;
+
+    Field* fields =
+        result->Fetch();
+
+    for (uint8 i = 0;
+        i < 3;
+        ++i)
+    {
+        team[i] =
+            fields[i].Get<uint32>();
+    }
+
+    return true;
+}
+
+void PetBattleMgr::ShuffleRivalTeam(
+    std::array<uint32, 3>& team)
+{
+    // ------------------------------------------------------------
+    // Fisher-Yates simple sobre las 3 entradas.
+    //
+    // Si algun slot esta en 0 (no configurado en la tabla),
+    // no rompe nada: simplemente puede quedar mezclado con los
+    // demas y se descarta mas adelante donde corresponda.
+    // ------------------------------------------------------------
+
+    for (uint8 i = 2;
+        i > 0;
+        --i)
+    {
+        uint8 j =
+            static_cast<uint8>(
+                urand(0, i));
+
+        std::swap(
+            team[i],
+            team[j]);
+    }
+}
+
+void PetBattleMgr::GenerateRivalPetStats(
+    uint32 creatureEntry,
+    PetBattleStats& pet)
+{
+    if (!creatureEntry)
+        return;
+
+    uint32 summonSpellID =
+        FindPetSummonSpellForCreatureEntry(
+            creatureEntry);
+
+    pet.mascotaID =
+        creatureEntry;
+
+    pet.spellID =
+        summonSpellID;
+
+    pet.vidaMax =
+        static_cast<uint32>(
+            urand(90, 120));
+
+    pet.vidaActual =
+        pet.vidaMax;
+
+    pet.tipo =
+        static_cast<uint8>(
+            urand(
+                0,
+                PET_TIPO_MAX - 1));
+
+    auto GenerateDamage = []() -> int32
+        {
+            if (urand(1, 100) <=
+                PET_HEAL_CHANCE)
+            {
+                return irand(
+                    PET_HEAL_MIN,
+                    PET_HEAL_MAX);
+            }
+
+            return static_cast<int32>(
+                urand(
+                    static_cast<uint32>(
+                        PET_DAMAGE_MIN),
+                    static_cast<uint32>(
+                        PET_DAMAGE_MAX)));
+        };
+
+    pet.dano1 =
+        GenerateDamage();
+
+    pet.dano2 =
+        GenerateDamage();
+
+    pet.dano3 =
+        GenerateDamage();
+}
+
+bool PetBattleMgr::AdvanceRivalQueue(
+    ActivePetBattle& battle)
+{
+    // ------------------------------------------------------------
+    // Solo aplica a retos rivales con cola de 3 mascotas.
+    // ------------------------------------------------------------
+
+    if (!battle.isRivalBattle)
+        return false;
+
+    battle.rivalQueueIndex++;
+
+    if (battle.rivalQueueIndex >= 3 ||
+        !battle.rivalQueue[battle.rivalQueueIndex])
+    {
+        // No quedan mas mascotas en la cola: la batalla termina
+        // normalmente en el lugar donde se llamo a esta funcion.
+        return false;
+    }
+
+    // ------------------------------------------------------------
+    // Generamos la siguiente mascota rival y la dejamos activa
+    // en el slot 0 del equipo B.
+    // ------------------------------------------------------------
+
+    GenerateRivalPetStats(
+        battle.rivalQueue[
+            battle.rivalQueueIndex],
+            battle.teamB[0]);
+
+    battle.activeIndexB =
+        0;
+
+    return true;
+}
+
+bool PetBattleMgr::TryStartRivalBattle(
+    Player* player,
+    Creature* creature)
+{
+    if (!player || !creature)
+        return false;
+
+    // ------------------------------------------------------------
+    // Verificar si el jugador ya está en una batalla.
+    // ------------------------------------------------------------
+
+    if (GetBattleByPlayer(
+        player->GetGUID()))
+    {
+        ChatHandler(player->GetSession()).PSendSysMessage(
+            "{}",
+            GetText(
+                player,
+                PETTXT_ALREADY_BATTLE).c_str());
+
+        return true;
+    }
+
+    // ------------------------------------------------------------
+    // Verificar distancia.
+    // ------------------------------------------------------------
+
+    float maxChallengeDistance =
+        sConfigMgr->GetOption<float>(
+            "PetBattle.ChallengeMaxDistance",
+            PET_CHALLENGE_MAX_DISTANCE_DEFAULT);
+
+    if (player->GetDistance(creature) >
+        maxChallengeDistance)
+    {
+        ChatHandler(player->GetSession()).PSendSysMessage(
+            "{}",
+            GetText(
+                player,
+                PETTXT_TOO_FAR).c_str());
+
+        return true;
+    }
+
+    // ------------------------------------------------------------
+    // Obtener el entry del NPC.
+    // ------------------------------------------------------------
+
+    uint32 npcEntry =
+        creature->GetEntry();
+
+    // ------------------------------------------------------------
+    // Cargar las mascotas configuradas para este NPC.
+    //
+    // Si el NPC no existe en bp_pet_rivales_team,
+    // simplemente no es un rival.
+    // ------------------------------------------------------------
+
+    std::array<uint32, 3> rivalTeam;
+
+    if (!LoadRivalTeam(
+        npcEntry,
+        rivalTeam))
+    {
+        return false;
+    }
+
+    // ------------------------------------------------------------
+    // Debe existir al menos una mascota.
+    // ------------------------------------------------------------
+
+    if (!rivalTeam[0])
+        return false;
+
+    // ------------------------------------------------------------
+    // Orden aleatorio: cada intento de reto baraja las 3 mascotas
+    // que van a pelear una tras otra.
+    // ------------------------------------------------------------
+
+    ShuffleRivalTeam(
+        rivalTeam);
+
+    // ------------------------------------------------------------
+    // Cargar equipo del jugador.
+    // ------------------------------------------------------------
+
+    std::array<PetBattleTeamSlot, 3> playerTeam;
+
+    LoadPlayerTeam(
+        player->GetGUID().GetCounter(),
+        playerTeam);
+
+    // El jugador debe tener obligatoriamente
+    // la primera ranura ocupada.
+    if (!playerTeam[0].creatureEntry)
+    {
+        ChatHandler(player->GetSession()).PSendSysMessage(
+            "{}",
+            GetTextFmt(
+                player,
+                PETTXT_WILD_NEED_SLOT1,
+                { creature->GetName() }).c_str());
+
+        return true;
+    }
+
+    // ------------------------------------------------------------
+    // Crear batalla.
+    // ------------------------------------------------------------
+
+    ActivePetBattle battle;
+
+    battle.playerA =
+        player->GetGUID();
+
+    // No hay Player B porque el rival es un NPC.
+    battle.playerB.Clear();
+
+    // IMPORTANTE:
+    // isWildBattle debe quedar en true, aunque no sea una mascota
+    // salvaje real, porque TODO el manejo de turno vs-NPC (addon,
+    // ShowAttackMenu, contraataque automatico, timeout) vive en la
+    // rama "isWildBattle" de StartPetAttack/ResolveAttackAndAdvance.
+    // Si se pone en false, el codigo cae en la rama PvP, que asume
+    // un Player B real y el turno queda colgado.
+    battle.isWildBattle =
+        true;
+
+    // Este flag es el que realmente distingue "salvaje" de "rival":
+    // evita otorgar la captura al ganar (EndBattle) y hace que,
+    // al morir la mascota del NPC, se avance la cola de 3 en vez
+    // de terminar la batalla (ResolveAttackAndAdvance).
+    battle.isRivalBattle =
+        true;
+
+    battle.rivalQueue =
+        rivalTeam;
+
+    battle.rivalQueueIndex =
+        0;
+
+    // Guardamos información del NPC rival.
+    battle.wildCreatureEntry =
+        npcEntry;
+
+    battle.wildSourceGuid =
+        creature->GetGUID();
+
+    battle.wildSpawnPos.Relocate(
+        creature->GetPositionX(),
+        creature->GetPositionY(),
+        creature->GetPositionZ(),
+        creature->GetOrientation());
+
+    // ------------------------------------------------------------
+    // Cargar estadísticas de las mascotas del jugador.
+    // ------------------------------------------------------------
+
+    ObjectGuid::LowType guidLow =
+        player->GetGUID().GetCounter();
+
+    for (uint8 i = 0;
+        i < 3;
+        ++i)
+    {
+        if (playerTeam[i].creatureEntry)
+        {
+            GetPetStats(
+                guidLow,
+                playerTeam[i].creatureEntry,
+                battle.teamA[i]);
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Solo generamos la PRIMERA mascota de la cola.
+    //
+    // Las otras dos se generan cuando esta cae, a traves de
+    // AdvanceRivalQueue() (llamado desde ResolveAttackAndAdvance).
+    // ------------------------------------------------------------
+
+    GenerateRivalPetStats(
+        battle.rivalQueue[
+            battle.rivalQueueIndex],
+            battle.teamB[0]);
+
+    // ------------------------------------------------------------
+    // Guardar batalla.
+    // ------------------------------------------------------------
+
+    ObjectGuid key =
+        battle.playerA;
+
+    _activeBattles[key] =
+        battle;
+
+    ActivePetBattle& stored =
+        _activeBattles[key];
+
+    // ------------------------------------------------------------
+    // Mensaje de inicio.
+    // ------------------------------------------------------------
+
+    ChatHandler(player->GetSession()).PSendSysMessage(
+        "¡{} te desafía a una batalla de mascotas!",
+        creature->GetName());
+
+    // ------------------------------------------------------------
+    // Invocar ambas mascotas.
+    // ------------------------------------------------------------
+
+    SummonActivePet(
+        player,
+        stored,
+        true);
+
+    SummonActivePet(
+        player,
+        stored,
+        false);
+
+    // ------------------------------------------------------------
+    // Igual que en el reto contra criatura salvaje: la mascota
+    // del rival ataca primero, sin abrir el menu del jugador
+    // todavia.
+    // ------------------------------------------------------------
+
+    stored.diceRolled =
+        true;
+
+    stored.turnPlayer.Clear();
+
+    // ------------------------------------------------------------
+    // Mostrar la interfaz de batalla.
+    // ------------------------------------------------------------
+
+    SendBattleInit(
+        player,
+        stored,
+        true);
+
+    // ------------------------------------------------------------
+    // La primera mascota rival ataca de inmediato.
+    // ------------------------------------------------------------
+
+    PetBattleStats const& rivalAttacker =
+        stored.teamB[
+            stored.activeIndexB];
+
+    uint8 rivalAttackIndex =
+        SelectAvailableAttack(
+            rivalAttacker);
+
+    int32 rivalDanoBase =
+        0;
+
+    switch (rivalAttackIndex)
+    {
+    case 1:
+        rivalDanoBase =
+            rivalAttacker.dano1;
+        break;
+
+    case 2:
+        rivalDanoBase =
+            rivalAttacker.dano2;
+        break;
+
+    case 3:
+        rivalDanoBase =
+            rivalAttacker.dano3;
+        break;
+    }
+
+    StartPetAttack(
+        stored,
+        false,
+        rivalDanoBase,
+        rivalAttackIndex,
+        nullptr,
+        false);
+
+    return true;
 }
 
 // ================================================================
@@ -1361,16 +1767,42 @@ void PetBattleMgr::StartBattleAgainstTarget(
         target->GetTypeId() == TYPEID_UNIT &&
         target->ToCreature())
     {
-        if (TryStartWildBattle(
+        Creature* creature =
+            target->ToCreature();
+
+        // ------------------------------------------------------------
+        // Primero comprobar si es un NPC rival configurado
+        // en bp_pet_rivales_team.
+        // ------------------------------------------------------------
+
+        if (TryStartRivalBattle(
             player,
-            target->ToCreature()))
+            creature))
         {
             return;
         }
 
+        // ------------------------------------------------------------
+        // Si no es un rival, comprobar si es una mascota salvaje
+        // capturable.
+        // ------------------------------------------------------------
+
+        if (TryStartWildBattle(
+            player,
+            creature))
+        {
+            return;
+        }
+
+        // ------------------------------------------------------------
+        // No es ni rival ni mascota salvaje.
+        // ------------------------------------------------------------
+
         ChatHandler(player->GetSession()).PSendSysMessage(
             "{}",
-            GetText(player, PETTXT_WILD_NOT_CAPTUREABLE).c_str());
+            GetText(
+                player,
+                PETTXT_WILD_NOT_CAPTUREABLE).c_str());
 
         return;
     }
@@ -4099,61 +4531,39 @@ void PetBattleMgr::StartPetAttack(
 
     if (!attackerCreature || !defenderCreature)
         return;
-
-
-
-
-
-
-
-
     Position startPosition = attackerIsA ? battle.spawnPosA : battle.spawnPosB;
-
     float dx = defenderCreature->GetPositionX() - attackerCreature->GetPositionX();
     float dy = defenderCreature->GetPositionY() - attackerCreature->GetPositionY();
     float distance = std::sqrt((dx * dx) + (dy * dy));
-
     if (distance < 0.1f)
         distance = 0.1f;
-
     float dirX = dx / distance;
     float dirY = dy / distance;
-
     // Orientacion hacia el rival.
     float attackOrientation =
         std::atan2(dy, dx);
-
     // Al regresar a su posicion inicial, la mascota quedara
     // mirando exactamente en sentido contrario al rival.
     float returnOrientation = attackOrientation;
-
     Position attackPosition;
     attackPosition.Relocate(
         defenderCreature->GetPositionX() - dirX * PET_ATTACK_DISTANCE,
         defenderCreature->GetPositionY() - dirY * PET_ATTACK_DISTANCE,
         defenderCreature->GetPositionZ(),
         attackOrientation);
-
     attackerCreature->SetFacingTo(attackOrientation);
-
     float speed = attackerCreature->GetSpeed(MOVE_RUN);
     if (speed <= 0.0f)
         speed = 7.0f;
-
     float moveDistance = attackerCreature->GetDistance(
         attackPosition.GetPositionX(),
         attackPosition.GetPositionY(),
         attackPosition.GetPositionZ());
-
     uint32 movementTime = static_cast<uint32>((moveDistance / speed) * 1000.0f);
     movementTime += 100;
-
     attackerCreature->GetMotionMaster()->MovePoint(
         100,
         attackPosition);
-
-
-
     // ------------------------------------------------------------
     // 1) Esperar a que termine el avance.
     // ------------------------------------------------------------
@@ -4183,10 +4593,8 @@ void PetBattleMgr::StartPetAttack(
 
             if (!attacker || !defender)
                 return;
-
             attacker->SetFacingToObject(defender);
             attacker->HandleEmoteCommand(EMOTE_ONESHOT_ATTACK_UNARMED);
-
             // --------------------------------------------------------
             // 2) Esperar a que termine la animacion del ataque.
             // --------------------------------------------------------
@@ -4265,9 +4673,6 @@ void PetBattleMgr::StartPetAttack(
                     currentAttacker->GetMotionMaster()->MovePoint(
                         101,
                         startPosition);
-
-
-
                     currentAttacker->m_Events.AddEventAtOffset(
                         [this,
                         battleKey,
@@ -4282,12 +4687,10 @@ void PetBattleMgr::StartPetAttack(
                             ActivePetBattle& battle = it->second;
                             if (battle.finished)
                                 return;
-
                             Creature* attacker =
                                 GetActiveSummonCreature(battle, attackerIsA);
                             if (!attacker)
                                 return;
-
                             // La mascota ya regreso a su posicion inicial.
                             // Ahora queda mirando en sentido contrario al rival.
                             if (Creature* defender =
@@ -4299,7 +4702,6 @@ void PetBattleMgr::StartPetAttack(
                             {
                                 attacker->SetFacingTo(returnOrientation);
                             }
-
                             attacker->m_Events.AddEventAtOffset(
                                 [this,
                                 battleKey,
@@ -4308,11 +4710,9 @@ void PetBattleMgr::StartPetAttack(
                                     auto it = _activeBattles.find(battleKey);
                                     if (it == _activeBattles.end())
                                         return;
-
                                     ActivePetBattle& battle = it->second;
                                     if (battle.finished)
                                         return;
-
                                     // =================================================
                                     // COMBATE SALVAJE
                                     // =================================================
@@ -4323,7 +4723,6 @@ void PetBattleMgr::StartPetAttack(
                                         {
                                             battle.teamA[battle.activeIndexA].TickCooldowns();
                                             battle.turnPlayer = battle.playerA;
-
                                             if (Player* player =
                                                 ObjectAccessor::FindPlayer(battle.playerA))
                                             {
@@ -4334,17 +4733,13 @@ void PetBattleMgr::StartPetAttack(
                                                 SendAddonMsg(
                                                     player,
                                                     "TURN:mine");
-
                                                 ShowAttackMenu(player, battle);
                                             }
-
                                             // Empieza el turno del jugador: si no ataca a
                                             // tiempo, pierde el combate salvaje.
                                             ScheduleTurnTimeout(battle);
-
                                             return;
                                         }
-
                                         // Termino A: ahora contraataca B.
                                         if (attackerIsA)
                                         {
@@ -4737,9 +5132,6 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
         {
             std::string msg;
 
-
-
-
             if (missed)
             {
                 msg = GetTextFmt(a, PETTXT_ATTACK_MISS, { atacanteNombre });
@@ -4827,12 +5219,30 @@ bool PetBattleMgr::ResolveAttackAndAdvance(
                 battle,
                 false);
 
-            ++battle.activeIndexB;
-
             bool sinMascotas =
-                battle.activeIndexB >= 3 ||
-                battle.teamB[
-                    battle.activeIndexB].mascotaID == 0;
+                true;
+
+            if (battle.isRivalBattle)
+            {
+                // ----------------------------------------------------
+                // Reto rival: en vez de avanzar de slot en teamB (que
+                // solo tiene el slot 0 lleno), generamos la siguiente
+                // mascota de la cola ya mezclada al azar.
+                // ----------------------------------------------------
+                sinMascotas =
+                    !AdvanceRivalQueue(
+                        battle);
+            }
+            else
+            {
+                ++battle.activeIndexB;
+
+                sinMascotas =
+                    battle.activeIndexB >= 3 ||
+                    battle.teamB[
+                        battle.activeIndexB].mascotaID == 0;
+            }
+
             if (sinMascotas)
             {
                 EndBattle(
@@ -4973,8 +5383,12 @@ void PetBattleMgr::EndBattle(
             winner,
             battle.isWildBattle);
 
+        // No otorgar captura en retos rivales: el "isWildBattle" aca
+        // solo controla el flujo de turno/addon, no si hay mascota
+        // salvaje real para capturar.
         if (battle.isWildBattle &&
-            winnerIsA)
+            winnerIsA &&
+            !battle.isRivalBattle)
         {
             GrantWildCaptureReward(
                 winner,
@@ -5036,6 +5450,7 @@ void PetBattleMgr::EndBattle(
     _activeBattles.erase(
         battle.playerA);
 }
+
 
 // ================================================================
 // Chat
@@ -5185,10 +5600,7 @@ void PetBattleMgr::GrantWildCaptureReward(
                 modelIndex);
 
         if (!displayId)
-
-        {
             continue;
-        }
 
         wildDisplayIds[modelIndex] =
             displayId;
@@ -5223,7 +5635,9 @@ void PetBattleMgr::GrantWildCaptureReward(
         return;
     }
 
-    uint32 matchedItemEntry = 0;
+    // Todos los items que coincidan con algún modelo
+    // de la criatura salvaje serán almacenados aquí.
+    std::vector<uint32> matchedItemEntries;
 
     do
     {
@@ -5233,8 +5647,11 @@ void PetBattleMgr::GrantWildCaptureReward(
         uint32 currentItemEntry =
             fields[0].Get<uint32>();
 
+        bool itemMatched = false;
+
         for (uint8 spellIndex = 0;
-            spellIndex < 5;
+            spellIndex < 5 &&
+            !itemMatched;
             ++spellIndex)
         {
             // Leemos como signed para ignorar valores -1.
@@ -5308,13 +5725,7 @@ void PetBattleMgr::GrantWildCaptureReward(
                         itemModelIndex);
 
                 if (!itemDisplayId)
-
-                {
                     continue;
-                }
-
-
-
 
                 for (uint8 wildModelIndex = 0;
                     wildModelIndex < 4;
@@ -5336,21 +5747,22 @@ void PetBattleMgr::GrantWildCaptureReward(
                 }
             }
 
+            // Si este item coincide, lo almacenamos.
             if (modelMatches)
             {
-                matchedItemEntry =
-                    currentItemEntry;
+                matchedItemEntries.push_back(
+                    currentItemEntry);
 
-                break;
+                // No necesitamos revisar las demás spells
+                // de este mismo item.
+                itemMatched = true;
             }
         }
 
-        if (matchedItemEntry)
-            break;
-
     } while (result->NextRow());
 
-    if (!matchedItemEntry)
+    // No se encontró ningún item compatible.
+    if (matchedItemEntries.empty())
     {
         ChatHandler(winner->GetSession()).PSendSysMessage(
             "{}",
@@ -5359,6 +5771,18 @@ void PetBattleMgr::GrantWildCaptureReward(
         return;
     }
 
+    // Elegimos aleatoriamente uno de todos los items
+    // que coincidieron.
+    uint32 randomIndex =
+        urand(
+            0,
+            static_cast<uint32>(
+                matchedItemEntries.size() - 1));
+
+    uint32 matchedItemEntry =
+        matchedItemEntries[
+            randomIndex];
+
     ItemTemplate const* itemTemplate =
         sObjectMgr->GetItemTemplate(
             matchedItemEntry);
@@ -5366,9 +5790,8 @@ void PetBattleMgr::GrantWildCaptureReward(
     if (!itemTemplate)
         return;
 
-    // AzerothCore 3.3.5a: use the standard inventory API instead of
-    // StoreNewItemInBestSlots(), which is not available on all AC branches.
     ItemPosCountVec dest;
+
     InventoryResult inventoryResult =
         winner->CanStoreNewItem(
             NULL_BAG,
@@ -5381,7 +5804,9 @@ void PetBattleMgr::GrantWildCaptureReward(
     {
         ChatHandler(winner->GetSession()).PSendSysMessage(
             "{}",
-            GetTextFmt(winner, PETTXT_CAPTURE_NO_SPACE,
+            GetTextFmt(
+                winner,
+                PETTXT_CAPTURE_NO_SPACE,
                 { itemTemplate->Name1 }).c_str());
 
         return;
@@ -5397,19 +5822,28 @@ void PetBattleMgr::GrantWildCaptureReward(
     {
         ChatHandler(winner->GetSession()).PSendSysMessage(
             "{}",
-            GetTextFmt(winner, PETTXT_CAPTURE_NO_SPACE,
+            GetTextFmt(
+                winner,
+                PETTXT_CAPTURE_NO_SPACE,
                 { itemTemplate->Name1 }).c_str());
 
         return;
     }
 
-    winner->SendNewItem(capturedItem, 1, true, false);
+    winner->SendNewItem(
+        capturedItem,
+        1,
+        true,
+        false);
 
     ChatHandler(winner->GetSession()).PSendSysMessage(
         "{}",
-        GetTextFmt(winner, PETTXT_CAPTURE_SUCCESS,
+        GetTextFmt(
+            winner,
+            PETTXT_CAPTURE_SUCCESS,
             { itemTemplate->Name1 }).c_str());
 }
+
 
 // ================================================================
 // Daño para addon/debug
@@ -5464,63 +5898,31 @@ void PetBattleMgr::ShowFloatingDamageNumber(
 // Invocar mascota
 // ================================================================
 
-Creature* PetBattleMgr::SummonActivePet(
-    Player* player,
-    ActivePetBattle& battle,
-    bool isA)
+Creature* PetBattleMgr::SummonActivePet(Player* player, ActivePetBattle& battle, bool isA)
 {
     if (!player)
         return nullptr;
-
-    PetBattleStats const& stats =
-        isA
-        ? battle.teamA[battle.activeIndexA]
-        : battle.teamB[battle.activeIndexB];
-
+    PetBattleStats const& stats = isA ? battle.teamA[battle.activeIndexA] : battle.teamB[battle.activeIndexB];
     if (!stats.mascotaID)
         return nullptr;
-
     Position pos;
 
     // ============================================================
     // Posicion
     // ============================================================
 
-    if (!isA &&
-        battle.isWildBattle)
+    if (!isA && battle.isWildBattle)
     {
-        pos =
-            battle.wildSpawnPos;
+        pos = battle.wildSpawnPos;
     }
     else
     {
-        float playerOrientation =
-            player->GetOrientation();
-
-        float dist =
-            isA
-            ? 2.0f
-            : 4.0f;
-
-        float x =
-            player->GetPositionX() +
-            dist *
-            std::cos(playerOrientation);
-
-        float y =
-            player->GetPositionY() +
-            dist *
-            std::sin(playerOrientation);
-
-        float z =
-            player->GetPositionZ();
-
-        pos =
-            Position(
-                x,
-                y,
-                z,
-                playerOrientation);
+        float playerOrientation = player->GetOrientation();
+        float dist = isA ? 2.0f : 4.0f;
+        float x = player->GetPositionX() + dist * std::cos(playerOrientation);
+        float y = player->GetPositionY() + dist * std::sin(playerOrientation);
+        float z = player->GetPositionZ();
+        pos = Position(x, y, z, playerOrientation);
     }
 
     // ============================================================
@@ -5528,45 +5930,22 @@ Creature* PetBattleMgr::SummonActivePet(
     // ============================================================
 
     Creature* otherPet = nullptr;
-
     if (isA)
-        otherPet =
-        GetActiveSummonCreature(
-            battle,
-            false);
+        otherPet = GetActiveSummonCreature(battle, false);
     else
-        otherPet =
-        GetActiveSummonCreature(
-            battle,
-            true);
-
+        otherPet = GetActiveSummonCreature(battle, true);
     if (otherPet)
     {
-        float dx =
-            otherPet->GetPositionX() -
-            pos.GetPositionX();
-
-        float dy =
-            otherPet->GetPositionY() -
-            pos.GetPositionY();
-
-        pos.SetOrientation(
-            std::atan2(
-                dy,
-                dx));
+        float dx = otherPet->GetPositionX() - pos.GetPositionX();
+        float dy = otherPet->GetPositionY() - pos.GetPositionY();
+        pos.SetOrientation(std::atan2(dy, dx));
     }
 
     // ============================================================
     // Invocar
     // ============================================================
 
-    Creature* summon =
-        player->SummonCreature(
-            stats.mascotaID,
-            pos,
-            TEMPSUMMON_TIMED_DESPAWN,
-            PET_SUMMON_MAX_DURATION_MS);
-
+    Creature* summon = player->SummonCreature(stats.mascotaID, pos, TEMPSUMMON_TIMED_DESPAWN, PET_SUMMON_MAX_DURATION_MS);
     if (!summon)
         return nullptr;
 
@@ -5575,12 +5954,8 @@ Creature* PetBattleMgr::SummonActivePet(
     // El movimiento y combate los controla PetBattleMgr.
     // ============================================================
 
-    summon->SetReactState(
-        REACT_PASSIVE);
-
-    summon->CombatStop(
-        true);
-
+    summon->SetReactState(REACT_PASSIVE);
+    summon->CombatStop(true);
     summon->StopMoving();
 
     // ============================================================
@@ -5588,12 +5963,9 @@ Creature* PetBattleMgr::SummonActivePet(
     // ============================================================
 
     if (isA)
-        battle.activeSummonA =
-        summon->GetGUID();
+        battle.activeSummonA = summon->GetGUID();
     else
-        battle.activeSummonB =
-        summon->GetGUID();
-
+        battle.activeSummonB = summon->GetGUID();
     // Guardar posicion de spawn para que el regreso sea siempre exacto
     if (isA)
         battle.spawnPosA = summon->GetPosition();
@@ -5606,55 +5978,27 @@ Creature* PetBattleMgr::SummonActivePet(
 
     if (otherPet)
     {
-        float dxToOther =
-            otherPet->GetPositionX() -
-            summon->GetPositionX();
-
-        float dyToOther =
-            otherPet->GetPositionY() -
-            summon->GetPositionY();
-
-        summon->SetOrientation(
-            std::atan2(
-                dyToOther,
-                dxToOther));
-
-        float dxToSummon =
-            summon->GetPositionX() -
-            otherPet->GetPositionX();
-
-        float dyToSummon =
-            summon->GetPositionY() -
-            otherPet->GetPositionY();
-
-        otherPet->SetOrientation(
-            std::atan2(
-                dyToSummon,
-                dxToSummon));
+        float dxToOther = otherPet->GetPositionX() - summon->GetPositionX();
+        float dyToOther = otherPet->GetPositionY() - summon->GetPositionY();
+        summon->SetOrientation(std::atan2(dyToOther, dxToOther));
+        float dxToSummon = summon->GetPositionX() - otherPet->GetPositionX();
+        float dyToSummon = summon->GetPositionY() - otherPet->GetPositionY();
+        otherPet->SetOrientation(std::atan2(dyToSummon, dxToSummon));
     }
 
     // ============================================================
     // Animacion de aparicion
     // ============================================================
 
-    uint32 visualSpellId =
-        sConfigMgr->GetOption<int32>(
-            "PetBattle.SummonVisualSpellId",
-            0);
-
+    uint32 visualSpellId = sConfigMgr->GetOption<int32>("PetBattle.SummonVisualSpellId", 0);
     if (visualSpellId)
     {
-        summon->CastSpell(
-            summon,
-            visualSpellId,
-            true);
+        summon->CastSpell(summon, visualSpellId, true);
     }
     else
     {
-        summon->HandleEmoteCommand(
-            EMOTE_ONESHOT_EXCLAMATION);
+        summon->HandleEmoteCommand(EMOTE_ONESHOT_EXCLAMATION);
     }
-
     return summon;
 }
 
@@ -5662,55 +6006,32 @@ Creature* PetBattleMgr::SummonActivePet(
 // Obtener mascota activa
 // ================================================================
 
-Creature* PetBattleMgr::GetActiveSummonCreature(
-    ActivePetBattle& battle,
-    bool isA)
+Creature* PetBattleMgr::GetActiveSummonCreature(ActivePetBattle& battle, bool isA)
 {
-    ObjectGuid guid =
-        isA
-        ? battle.activeSummonA
-        : battle.activeSummonB;
-
+    ObjectGuid guid = isA ? battle.activeSummonA : battle.activeSummonB;
     if (guid.IsEmpty())
         return nullptr;
-
-    Player* anchor =
-        ObjectAccessor::FindPlayer(
-            battle.playerA);
-
+    Player* anchor = ObjectAccessor::FindPlayer(battle.playerA);
     if (!anchor)
     {
         anchor =
-            ObjectAccessor::FindPlayer(
-                battle.playerB);
+            ObjectAccessor::FindPlayer(battle.playerB);
     }
-
     if (!anchor)
         return nullptr;
-
-    return ObjectAccessor::GetCreature(
-        *anchor,
-        guid);
+    return ObjectAccessor::GetCreature(*anchor, guid);
 }
 
 // ================================================================
 // Desaparecer mascota derrotada
 // ================================================================
 
-void PetBattleMgr::DespawnActivePetDefeated(
-    ActivePetBattle& battle,
-    bool isA)
+void PetBattleMgr::DespawnActivePetDefeated(ActivePetBattle& battle, bool isA)
 {
-    if (Creature* creature =
-        GetActiveSummonCreature(
-            battle,
-            isA))
+    if (Creature* creature = GetActiveSummonCreature(battle, isA))
     {
-        creature->HandleEmoteCommand(
-            EMOTE_ONESHOT_WOUND_CRITICAL);
-
-        creature->DespawnOrUnsummon(
-            300ms);
+        creature->HandleEmoteCommand(EMOTE_ONESHOT_WOUND_CRITICAL);
+        creature->DespawnOrUnsummon(300ms);
     }
 
     if (isA)
@@ -5722,19 +6043,12 @@ void PetBattleMgr::DespawnActivePetDefeated(
 // ================================================================
 // Desaparecer mascota
 // ================================================================
-
-void PetBattleMgr::DespawnActivePet(
-    ActivePetBattle& battle,
-    bool isA)
+void PetBattleMgr::DespawnActivePet(ActivePetBattle& battle, bool isA)
 {
-    if (Creature* creature =
-        GetActiveSummonCreature(
-            battle,
-            isA))
+    if (Creature* creature = GetActiveSummonCreature(battle, isA))
     {
         creature->DespawnOrUnsummon();
     }
-
     if (isA)
         battle.activeSummonA.Clear();
     else

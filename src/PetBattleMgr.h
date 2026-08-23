@@ -132,27 +132,25 @@ struct ActivePetBattle
     ObjectGuid playerA;
     ObjectGuid playerB;
     uint32 turnTimeoutToken = 0;
-
     // Posicion de spawn de la mascota activa: se usa como punto de
     // regreso exacto tras cada ataque, en vez de leerla de nuevo del
     // Creature (que ya se habra movido para atacar).
     Position spawnPosA;
     Position spawnPosB;
-
     std::array<PetBattleStats, 3> teamA;
     std::array<PetBattleStats, 3> teamB;
-
     uint8 activeIndexA = 0;
     uint8 activeIndexB = 0;
-
     // GUID de la mascota actualmente invocada en el mundo para cada lado.
     ObjectGuid activeSummonA;
     ObjectGuid activeSummonB;
-
     // Jugador al que le corresponde el turno cuando el combate esta en
     // estado normal. Durante una secuencia de ataque el turno se resuelve
     // mediante los callbacks de movimiento/animacion.
     ObjectGuid turnPlayer;
+    bool isRivalBattle = false;
+    std::array<uint32, 3> rivalQueue{};
+    uint8 rivalQueueIndex = 0;
 
     bool   diceRolled = false;
     uint32 diceA = 0;
@@ -273,142 +271,65 @@ public:
     void LoadPlayerTeam(ObjectGuid::LowType guidLow, std::array<PetBattleTeamSlot, 3>& outTeam);
     void SavePlayerTeamSlot(ObjectGuid::LowType guidLow, uint8 slotIndex /*0-2*/, uint32 creatureEntry);
     void ClearPlayerTeam(ObjectGuid::LowType guidLow);
+    void ShuffleRivalTeam(std::array<uint32, 3>& team);
+    bool AdvanceRivalQueue(ActivePetBattle& battle);
     // para puntaje
     void AddPlayerVictory(ObjectGuid guid);
     void AddPlayerLose(ObjectGuid guid);
     void AddPlayerSurrender(ObjectGuid guid);
-    
-
-
+    bool LoadRivalTeam(uint32 npcEntry, std::array<uint32, 3>& team);
+    bool TryStartRivalBattle(Player* player, Creature* creature);
+    void GenerateRivalPetStats(uint32 creatureEntry, PetBattleStats& pet);
     bool UseGossipUI() const;
-
     // ---- Estadisticas de mascotas ----
     bool GetPetStats(ObjectGuid::LowType guidLow, uint32 creatureEntry, PetBattleStats& out);
-
-    void CreatePetStats(
-        ObjectGuid::LowType guidLow,
-        uint32 spellID,
-        uint32 creatureEntry);
-
-    void RegisterPetIfSummonSpell(
-        Player* player,
-        uint32 spellID);
-
+    void CreatePetStats(ObjectGuid::LowType guidLow, uint32 spellID, uint32 creatureEntry);
+    void RegisterPetIfSummonSpell(Player* player, uint32 spellID);
     // ---- Utilidades de tipo elemental ----
-    static float GetTypeMultiplier(
-        uint8 attackerType,
-        uint8 defenderType);
-
-    static bool IsAttackerAtTypeDisadvantage(
-        uint8 attackerType,
-        uint8 defenderType);
-
-    static int32 ResolveHitDamage(
-        PetBattleStats const& attacker,
-        PetBattleStats const& defender,
-        int32 danoBase,
-        bool& outMissed,
-        bool& outSuperEfectivo);
-
+    static float GetTypeMultiplier(uint8 attackerType, uint8 defenderType);
+    static bool IsAttackerAtTypeDisadvantage(uint8 attackerType, uint8 defenderType);
+    static int32 ResolveHitDamage(PetBattleStats const& attacker, PetBattleStats const& defender, int32 danoBase, bool& outMissed, bool& outSuperEfectivo);
     // ---- Menu de configuracion de equipo ----
     void ShowTeamMenu(Player* player);
-
     // Logique partagee entre la commande .dp (sans argument) et le
     // bouton "Duel de Mascotte" de l'addon (message STARTBATTLE) :
     // regarde la cible actuelle du joueur et lance l'action adaptee
     // (defi PvP, combat sauvage, ou menu d'equipe si rien de cible).
     void StartBattleAgainstTarget(Player* player);
-
-    void HandleTeamGossipAction(
-        Player* player,
-        uint32 sender,
-        uint32 action);
-
+    void HandleTeamGossipAction(Player* player, uint32 sender, uint32 action);
     // ---- Retos PvP ----
-    bool StartDuelRequest(
-        Player* challenger,
-        Player* target);
-
+    bool StartDuelRequest(Player* challenger, Player* target);
     void HandleDuelAccept(Player* target);
     void HandleDuelDecline(Player* target);
-
     // ---- Reto contra criatura del mundo ----
-    bool TryStartWildBattle(
-        Player* player,
-        Creature* creature);
-
+    bool TryStartWildBattle(Player* player, Creature* creature);
     // Busca un hechizo de companion cuyo modelo coincida con el modelo
     // de la criatura del mundo.
-    uint32 FindPetSummonSpellForCreatureEntry(
-        uint32 creatureEntry);
-
-    void ShowDuelChallengeMenu(
-        Player* target,
-        Player* challenger);
-
+    uint32 FindPetSummonSpellForCreatureEntry(uint32 creatureEntry);
+    void ShowDuelChallengeMenu(Player* target, Player* challenger);
     // ---- Flujo de batalla ----
-    void ShowDiceMenu(
-        Player* player,
-        ActivePetBattle& battle);
-
-    void HandleDiceRoll(
-        Player* player,
-        ActivePetBattle& battle);
-
-    void SendCooldownsToClient(
-        Player* player,
-        PetBattleStats const& pet);
-
-    void ShowAttackMenu(
-        Player* player,
-        ActivePetBattle& battle);
-
-    void HandleAttack(
-        Player* player,
-        ActivePetBattle& battle,
-        uint8 attackIndex);
-
+    void ShowDiceMenu(Player* player, ActivePetBattle& battle);
+    void HandleDiceRoll(Player* player, ActivePetBattle& battle);
+    void SendCooldownsToClient(Player* player, PetBattleStats const& pet);
+    void ShowAttackMenu(Player* player, ActivePetBattle& battle);
+    void HandleAttack(Player* player, ActivePetBattle& battle, uint8 attackIndex);
     // Le joueur choisit de passer son tour (bouton "Passer" de
     // l'addon) : le tour se termine immediatement, sans degats.
-    void HandlePass(
-        Player* player,
-        ActivePetBattle& battle);
-
+    void HandlePass(Player* player, ActivePetBattle& battle);
     // Le joueur change de mascotte active en plein combat (bouton
     // "Changer de mascotte" de l'addon) : consomme le tour.
-    void HandleSwitchPet(
-        Player* player,
-        ActivePetBattle& battle);
-
+    void HandleSwitchPet(Player* player, ActivePetBattle& battle);
     // Logique de transition de tour partagee entre HandlePass et
     // HandleSwitchPet (aucun degat/soin a resoudre, contrairement a
     // HandleAttack qui gere sa propre transition apres l'animation).
-    void AdvanceTurnAfterAction(
-        ActivePetBattle& battle,
-        bool actorIsA);
-
+    void AdvanceTurnAfterAction(ActivePetBattle& battle, bool actorIsA);
     // Resuelve el dano de un ataque individual.
-    bool ResolveAttackAndAdvance(
-        ActivePetBattle& battle,
-        bool attackerIsA,
-        int32 danoBase,
-        uint8 attackIndex,
-        Player* attackerPlayer,
-        bool autoHeal = false);
-
-    void EndBattle(
-        ActivePetBattle& battle,
-        ObjectGuid winnerGuid,
-        ObjectGuid loserGuid,
-        bool wasSurrender = false);
-
+    bool ResolveAttackAndAdvance(ActivePetBattle& battle, bool attackerIsA, int32 danoBase, uint8 attackIndex, Player* attackerPlayer, bool autoHeal = false);
+    void EndBattle(ActivePetBattle& battle, ObjectGuid winnerGuid, ObjectGuid loserGuid, bool wasSurrender = false);
     // Cerrar la ventana del combate equivale a abandonar la batalla.
     // El jugador que abandona pierde inmediatamente.
-
     // ---- Batallas activas ----
-    ActivePetBattle* GetBattleByPlayer(
-        ObjectGuid playerGuid);
-
+    ActivePetBattle* GetBattleByPlayer(ObjectGuid playerGuid);
     // ============================================================
     // Puente de addon messages (reemplaza los gossip)
     // ============================================================
@@ -416,52 +337,30 @@ public:
     // Punto de entrada unico para todo lo que llega del addon
     // PetBattleUI (prefijo "PETBTL"). payload ya viene sin el
     // prefijo ni el tab, tal como lo separa mod_pet_battle.cpp.
-    void HandleAddonMessage(
-        Player* player,
-        std::string const& payload);
-
-    void RemovePetFromTeam(
-        Player* player,
-        uint8 slotIndex);
-
-    void ForgetPet(
-        Player* player,
-        uint8 slotIndex);
-
-    void ConvertPetToItem(
-        Player* player,
-        uint8 slotIndex);
-
+    void HandleAddonMessage(Player* player, std::string const& payload);
+    void RemovePetFromTeam(Player* player, uint8 slotIndex);
+    void ForgetPet(Player* player, uint8 slotIndex);
+    void ConvertPetToItem(Player* player, uint8 slotIndex);
     // Busca el item que representa a una mascota al "desligarla".
     // La relacion se define en world.pet_battle_detach_items.
     uint32 GetDetachItemEntry(uint32 creatureEntry) const;
 private:
     // Envia un mensaje al addon del cliente (prefijo PETBTL).
-    void SendAddonMsg(
-        Player* player,
-        std::string const& msg);
-
+    void SendAddonMsg(Player* player, std::string const& msg);
     // Envia al addon el equipo completo tal como esta guardado en
     // equipo_mascotas/estatus_mascotas (los 3 slots, con nombre,
     // tipo y danos). Se usa para que la UI del addon siempre
     // refleje el equipo actual al abrir la ventana de Companeros,
     // en vez de depender solo de lo que el cliente pinto de forma
     // optimista durante la sesion.
-    void SendFullTeamToClient(
-        Player* player);
-
+    void SendFullTeamToClient(Player* player);
     // Envia BATTLEINIT a "viewer" con los datos de su propia mascota
     // activa y la del rival, desde su punto de vista.
-    void SendBattleInit(
-        Player* viewer,
-        ActivePetBattle& battle,
-        bool viewerIsA);
-
+    void SendBattleInit(Player* viewer, ActivePetBattle& battle, bool viewerIsA);
     // Busca el creatureEntry que invoca un hechizo de companero
     // (usado para traducir el spellID que manda el addon al
     // arrastrar y soltar, al mismo entry que usa equipo_mascotas).
-    uint32 FindCreatureEntryForSpell(
-        uint32 spellID);
+    uint32 FindCreatureEntryForSpell(uint32 spellID);
 
     struct LocaleTextRow
     {
@@ -519,70 +418,30 @@ private:
     // ============================================================
 
     uint8 SelectAvailableAttack(PetBattleStats const& pet) const;
-
-    void StartPetAttack(
-        ActivePetBattle& battle,
-        bool attackerIsA,
-        int32 danoBase,
-        uint8 attackIndex,
-        Player* attackerPlayer,
-        bool autoHeal = false);
-
-    void SendPetChatFeedback(
-        Player* p1,
-        Player* p2,
-        std::string const& msg);
-
-    void SendPetChatFeedbackLocalized(
-        Player* p1,
-        Player* p2,
-        uint32 textId,
-        std::initializer_list<std::string> args = {});
-
+    void StartPetAttack(ActivePetBattle& battle, bool attackerIsA, int32 danoBase, uint8 attackIndex, Player* attackerPlayer, bool autoHeal = false);
+    void SendPetChatFeedback(Player* p1, Player* p2, std::string const& msg);
+    void SendPetChatFeedbackLocalized(Player* p1, Player* p2, uint32 textId, std::initializer_list<std::string> args = {});
     // ============================================================
     // Recompensas
     // ============================================================
 
-    void GrantBattleExperience(
-        Player* winner,
-        bool vsWild);
-
-    void GrantWildCaptureReward(
-        Player* winner,
-        ActivePetBattle const& battle);
+    void GrantBattleExperience(Player* winner, bool vsWild);
+    void GrantWildCaptureReward(Player* winner, ActivePetBattle const& battle);
 
     // ============================================================
     // Feedback de dano
     // ============================================================
 
-    void ShowFloatingDamageNumber(
-        Creature* target,
-        Player* attacker,
-        Player* defenderOwner,
-        int32 damage,
-        bool missed,
-        bool critEffective);
+    void ShowFloatingDamageNumber(Creature* target, Player* attacker, Player* defenderOwner, int32 damage, bool missed, bool critEffective);
 
     // ============================================================
     // Invocacion / desaparicion
     // ============================================================
 
-    Creature* SummonActivePet(
-        Player* player,
-        ActivePetBattle& battle,
-        bool isA);
-
-    Creature* GetActiveSummonCreature(
-        ActivePetBattle& battle,
-        bool isA);
-
-    void DespawnActivePet(
-        ActivePetBattle& battle,
-        bool isA);
-
-    void DespawnActivePetDefeated(
-        ActivePetBattle& battle,
-        bool isA);
+    Creature* SummonActivePet(Player* player, ActivePetBattle& battle, bool isA);
+    Creature* GetActiveSummonCreature(ActivePetBattle& battle, bool isA);
+    void DespawnActivePet(ActivePetBattle& battle, bool isA);
+    void DespawnActivePetDefeated(ActivePetBattle& battle, bool isA);
 };
 
 #define sPetBattleMgr PetBattleMgr::instance()
