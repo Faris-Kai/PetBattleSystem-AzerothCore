@@ -14,26 +14,47 @@
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
--- Volcando datos para la tabla acore_world.bp_pet_bestiary: ~0 rows (aproximadamente)
-INSERT IGNORE INTO `bp_pet_bestiary` (`account_id`, `item_entry`) VALUES
-	(1, 13582),
-	(1, 13584),
-	(1, 39656),
-	(2, 39656);
+-- Volcando estructura para tabla acore_world.bp_pet_bestiary
+CREATE TABLE IF NOT EXISTS `bp_pet_bestiary` (
+  `account_id` int unsigned NOT NULL,
+  `item_entry` int unsigned NOT NULL,
+  PRIMARY KEY (`account_id`,`item_entry`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Volcando datos para la tabla acore_world.bp_pet_detach_items: ~0 rows (aproximadamente)
+-- Volcando estructura para tabla acore_world.bp_pet_detach_items
+CREATE TABLE IF NOT EXISTS `bp_pet_detach_items` (
+  `item_entry` int unsigned NOT NULL,
+  `spell_id` int unsigned NOT NULL,
+  PRIMARY KEY (`item_entry`),
+  KEY `idx_spell_id` (`spell_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Volcando datos para la tabla acore_world.bp_pet_info: ~10 rows (aproximadamente)
-INSERT IGNORE INTO `bp_pet_info` (`guid_jugador`, `spell_id`, `item_entry`, `mascotaID`, `vida`, `tipo`, `cant_daño_1`, `cant_daño_2`, `cant_daño_3`) VALUES
-	(1, 4055, 4401, 2671, 102, 0, -14, -20, -19),
-	(1, 10673, 8485, 7385, 103, 1, 17, 0, 31),
-	(1, 10678, 8488, 7381, 96, 5, 19, 24, -16),
-	(1, 10711, 8497, 7560, 97, 0, 12, 24, 15),
-	(1, 17709, 13582, 11327, 110, 1, 17, -13, 16),
-	(3, 10673, 8485, 7385, 101, 2, 18, 16, 15),
-	(3, 10704, 11026, 7549, 109, 2, 28, 15, 13),
-	(3, 10711, 8497, 7560, 109, 2, 21, 23, 10),
-	(3, 53082, 39656, 29089, 112, 1, -15, 28, 12);
+-- Volcando estructura para tabla acore_world.bp_pet_info
+CREATE TABLE IF NOT EXISTS `bp_pet_info` (
+  `guid_jugador` int unsigned NOT NULL,
+  `spell_id` int unsigned NOT NULL,
+  `item_entry` int unsigned NOT NULL DEFAULT '0',
+  `mascotaID` int unsigned NOT NULL DEFAULT '0',
+  `vida` int NOT NULL DEFAULT '0',
+  `tipo` int NOT NULL DEFAULT '0',
+  `cant_daño_1` int NOT NULL DEFAULT '0',
+  `cant_daño_2` int NOT NULL DEFAULT '0',
+  `cant_daño_3` int NOT NULL DEFAULT '0',
+  PRIMARY KEY (`guid_jugador`,`spell_id`),
+  KEY `idx_spell_id` (`spell_id`),
+  KEY `idx_item_entry` (`item_entry`),
+  KEY `idx_mascotaID` (`mascotaID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Volcando estructura para tabla acore_world.bp_pet_locale
+CREATE TABLE IF NOT EXISTS `bp_pet_locale` (
+  `id` int unsigned NOT NULL,
+  `enUS` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `esES` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `frFR` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `deDE` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Volcando datos para la tabla acore_world.bp_pet_locale: ~75 rows (aproximadamente)
 INSERT IGNORE INTO `bp_pet_locale` (`id`, `enUS`, `esES`, `frFR`, `deDE`) VALUES
@@ -114,17 +135,50 @@ INSERT IGNORE INTO `bp_pet_locale` (`id`, `enUS`, `esES`, `frFR`, `deDE`) VALUES
 	(75, 'That creature is not a capturable pet companion.', 'Esa criatura no es un compañero de mascotas capturable.', 'Cette créature n\'est pas un compagnon de mascottes capturable.', 'Diese Kreatur ist kein fangbarer Haustierbegleiter.'),
 	(76, 'You are too far from the opponent.', 'Estas muy lejos del oponente.', 'Vous êtes trop loin de l\'adversaire.', 'Du bist zu weit vom Gegner entfernt.'),
 	(77, '{0} has recovered {1} health points. Current HP: {2}', '{0} ha recuperado {1} puntos de salud. HP actual: {2}', '{0} a récupéré {1} points de vie. PV actuels : {2}', '{0} hat {1} Lebenspunkte wiederhergestellt. Aktuelle LP: {2}'),
-	(78, '{0} change opinion and has recovered {1} health points. Current HP: {2}', '{0} cambió de opinión y ha recuperado {1} puntos de salud. HP actual: {2}', '{0} a changé d\'avis et a récupéré {1} points de vie. PV actuels : {2}', '{0} hat seine Meinung geändert und {1} Gesundheitspunkte wiederhergestellt. Aktuelle LP: {2}');
+	(78, '{0} change opinion and has recovered {1} health points. Current HP: {2}', '{0} cambió de opinión y ha recuperado {1} puntos de salud. HP actual: {2}', '{0} a changé d\'avis et a récupéré {1} points de vie. PV actuels : {2}', '{0} hat seine Meinung geändert und {1} Gesundheitspunkte wiederhergestellt. Aktuelle LP: {2}')
+ON DUPLICATE KEY UPDATE
+    `enUS` = VALUES(`enUS`),
+    `esES` = VALUES(`esES`),
+    `frFR` = VALUES(`frFR`),
+    `deDE` = VALUES(`deDE`);
 
--- Volcando datos para la tabla acore_world.bp_pet_player_score: ~2 rows (aproximadamente)
-INSERT IGNORE INTO `bp_pet_player_score` (`guid`, `victory`, `lose`, `rendiciones`) VALUES
-	(1, 13, 33, 26),
-	(3, 10, 6, 1);
+-- Volcando estructura para tabla acore_world.bp_pet_player_score
+CREATE TABLE IF NOT EXISTS `bp_pet_player_score` (
+  `guid` bigint unsigned NOT NULL,
+  `victory` int unsigned NOT NULL DEFAULT '0',
+  `lose` int unsigned NOT NULL DEFAULT '0',
+  `rendiciones` int unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`guid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Volcando datos para la tabla acore_world.bp_pet_team: ~2 rows (aproximadamente)
-INSERT IGNORE INTO `bp_pet_team` (`guid`, `slot1_creature_entry`, `slot2_creature_entry`, `slot3_creature_entry`) VALUES
-	(1, 0, 0, 0),
-	(3, 0, 7385, 7560);
+
+-- Volcando estructura para tabla acore_world.bp_pet_rivales_team
+CREATE TABLE IF NOT EXISTS `bp_pet_rivales_team` (
+  `entry` int unsigned NOT NULL,
+  `mascota1` int unsigned NOT NULL DEFAULT '0',
+  `mascota2` int unsigned NOT NULL DEFAULT '0',
+  `mascota3` int unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`entry`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Volcando datos para la tabla acore_world.bp_pet_rivales_team: ~1 rows (aproximadamente)
+INSERT IGNORE INTO `bp_pet_rivales_team` (`entry`, `mascota1`, `mascota2`, `mascota3`) VALUES
+	(11940, 7382, 7383, 7384)
+ON DUPLICATE KEY UPDATE
+    `entry` = VALUES(`entry`),
+    `mascota1` = VALUES(`mascota1`),
+    `mascota2` = VALUES(`mascota2`),
+    `mascota3` = VALUES(`mascota3`);
+
+-- Volcando estructura para tabla acore_world.bp_pet_team
+CREATE TABLE IF NOT EXISTS `bp_pet_team` (
+  `guid` int unsigned NOT NULL,
+  `slot1_creature_entry` int unsigned NOT NULL DEFAULT '0',
+  `slot2_creature_entry` int unsigned NOT NULL DEFAULT '0',
+  `slot3_creature_entry` int unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`guid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;
